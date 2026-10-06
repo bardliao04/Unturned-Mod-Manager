@@ -6,7 +6,7 @@
 
 [下載最新版管理器](https://github.com/bardliao04/Unturned-Mod-Manager/releases/latest)
 
-在下載頁的 **Assets** 點選 `Unturned模組管理器_v1.0.zip`。完整解壓縮後開啟 `Unturned模組管理器.exe`；Source code 並非管理器程式。
+在下載頁的 **Assets** 點選 `Unturned-Mod-Manager_v1.0.zip`。完整解壓縮後開啟 `Unturned模組管理器.exe`；Source code 並非管理器程式。
 
 需要 Windows 10／11 與 .NET Framework 4.8。
 
