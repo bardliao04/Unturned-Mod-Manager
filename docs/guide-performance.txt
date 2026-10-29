@@ -1,0 +1,17 @@
+Before (same machine, isolated fixtures):
+select-all=1776ms search-after-select=1556ms
+select-all=1776ms search-after-select=1556ms publish-and-deliver-1000=37ms
+512 files: preflight=163ms install=3153ms restore=1038ms
+
+After (final build, isolated fixtures):
+select-all=118ms search-after-select=60ms
+select-all=118ms search-after-select=60ms publish-and-deliver-1000=38ms
+512 files: preflight=148ms install=4293ms restore=1495ms
+
+Earlier after sample: 512 files: preflight=139ms install=2490ms restore=1005ms
+
+Single-machine samples; disk times vary. No low-spec hardware guarantee.
+
+Same-content update comparison (512 files, baseline compiled from preserved Git head):
+512 files: preflight=178ms install=3092ms identical-update=4114ms restore=2281ms
+512 files: preflight=150ms install=3135ms identical-update=661ms restore=1665ms
