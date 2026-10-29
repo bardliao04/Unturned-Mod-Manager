@@ -441,5 +441,6 @@
   "RetainedFiles": "Retained files from the old scope",
   "RetainedState": "Old-scope records retained",
   "RetainedHelp": "These files are outside the continued package. Old records and backups remain. Some may have changed; review technical details. The manager does not automatically remove them or mark them resolved.",
-  "LegacyOwnedMismatch": "A file was changed by another tool or a game update. Stopped to preserve it: "
+  "LegacyOwnedMismatch": "A file was changed by another tool or a game update. Stopped to preserve it: ",
+  "ReconcileBeforeInstall": "The installed translation matches the selected package and has passed checks against the original installer records and backups. The manager record is out of sync. Review the restore points below; installation checks will run again after continuation."
 }

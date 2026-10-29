@@ -1,0 +1,25 @@
+{
+  "version": "2026.10.29.1",
+  "files": 1939,
+  "safe": 1,
+  "blocked": 0,
+  "collisions": 0,
+  "errors": [],
+  "alreadyCurrent": true,
+  "gameFilesAndWriteTimesUnchanged": true,
+  "existingManagerBackupsUnchanged": true,
+  "assistantDataUnchanged": true,
+  "retained": 1037,
+  "unresolved": [
+    "Bundles/Vehicles/Eagle_Germany/Tchinese.dat"
+  ],
+  "totalSourceFilesVerified": 1939,
+  "fromVersion": "2026.10.06.10",
+  "reportedFile": {
+    "path": "Localization/Tchinese/Editor/EditorEnvironment.dat",
+    "managerExpected": "c242a063aa36014f5d75dbdb9b874cb210c317d7f98a6d5d9d8f777cb5d6223a",
+    "installed": "c13afdf3a288a5af3f3753bb7dce6f13d0acebdd173ef544423dab6543b60cd2",
+    "packageExpected": "c13afdf3a288a5af3f3753bb7dce6f13d0acebdd173ef544423dab6543b60cd2",
+    "assistantExpected": "c13afdf3a288a5af3f3753bb7dce6f13d0acebdd173ef544423dab6543b60cd2"
+  }
+}
