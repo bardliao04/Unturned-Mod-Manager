@@ -1,0 +1,13 @@
+# Localization resources
+
+The three UTF-8 JSON dictionaries (`zh-TW`, `en-US`, `zh-CN`) are embedded by `build.ps1` and accessed through `L.Get(key)`. They contain the same 275 non-empty keys. The executable does not need loose JSON files next to it.
+
+- `Text000`–`Text236` are stable keys migrated from the existing application. Keep them stable while other UI work is reviewed.
+- New interaction strings use descriptive keys such as `ReviewUninstall`, `EmptySearch` and `SelectionCount`.
+- Add a key to all three dictionaries, then use `L.Get` in the UI or core-generated message. Preserve placeholders (`{0}` etc.), paths, version values and technical identifiers.
+- `L.Get` falls back to Traditional Chinese for a missing or empty translation. Unknown keys display `[key]` so omissions are visible. An unknown culture falls back to `zh-TW`.
+- `L.Validate()` rejects missing, extra or empty translations during `build.ps1 -Test`. All language choices and preference persistence are exercised by `ExperienceTests`.
+- To add another language, add its dictionary, register the culture in `L.Languages` and `build.ps1`, and extend both visible language selectors and integration tests.
+- Do not translate package-author names or descriptions. Display source categories through `L.Text`; source priority compares stable resource identity across languages.
+- Existing diagnostic classification uses an invariant Traditional Chinese comparison view. This view must never be returned as the displayed exception; preserve `ex.Message` and localize only the manager-generated text and remedy.
+- Activity entries retain their language at event time. New events follow the current language. Native Windows file pickers and operating-system error details follow Windows.
