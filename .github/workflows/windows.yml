@@ -1,0 +1,23 @@
+name: Windows build and isolated verification
+on:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build and test
+        shell: powershell
+        run: ./build.ps1 -Test
+      - name: Upload Windows preview and test evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: windows-manager-preview
+          path: |
+            dist/
+            TestResults/results.txt
+            TestResults/workflow-*/workflow-results.txt
+            TestResults/ui-*/ui-results.txt
+            TestResults/ui-*/*.png

@@ -1,0 +1,8 @@
+dist/
+TestResults/
+PreviewState/
+ServerPreviewState/
+發布資料/
+*.zip
+*.png
+strings-source.json
