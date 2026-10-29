@@ -1,4 +1,4 @@
-﻿PASS all versions remain selectable and equal-version workshop is recommended without duplicate paths
+PASS all versions remain selectable and equal-version workshop is recommended without duplicate paths
 PASS remembered older version is retained after scanning
 PASS missing saved version falls back to recommended latest
 PASS downgrade requires explicit confirmation flag
@@ -37,7 +37,7 @@ PASS reject unsafe path ../escape
 PASS reject unsafe path /absolute
 PASS reject unsafe path Modules/Test/a.dll:stream
 PASS reject unsafe path Modules/Test/NUL.txt
-PASS reject unsafe path Modules/Test/a. 
+PASS reject unsafe path Modules/Test/a. [trailing space]
 PASS reject unsafe path Modules\Test\x
 PASS reject writes outside Modules
 PASS reject overwriting official module
