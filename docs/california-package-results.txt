@@ -1,0 +1,22 @@
+PASS actual California 2 v1.2 exposes two scopes and all 3043 files
+PASS map and resource IDs cannot collide with the core translation package
+PASS scope target is confined to isolated fixture: 3707778928
+PASS actual package installs every manifest entry in scope 3707778928
+PASS all installed translation hashes match the actual package: 3707778928
+PASS updated original text stops installation: 3707778928
+PASS source drift cannot change installation record
+PASS injected interruption rolls back scoped update
+PASS rollback preserves installed scoped content
+PASS scope target is confined to isolated fixture: 3711646503
+PASS actual package installs every manifest entry in scope 3711646503
+PASS all installed translation hashes match the actual package: 3711646503
+PASS updated original text stops installation: 3711646503
+PASS source drift cannot change installation record
+PASS supplemental asset drift is rejected
+PASS injected interruption rolls back scoped update
+PASS rollback preserves installed scoped content
+PASS restoring map scope preserves independently installed resource scope
+PASS uninstall restores original translations in both scopes
+PASS missing original subscription is never created
+PASS unsafe scope ID is rejected
+PASS missing subscription remains absent
