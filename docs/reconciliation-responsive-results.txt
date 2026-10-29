@@ -1,0 +1,31 @@
+PASS identical updates verify content without rewriting files
+PASS missing managed files are repaired rather than skipped
+PASS unchanged optimization still protects external modifications
+PASS unchanged updates retain the original uninstall backup
+PASS per-thread JSON readers preserve concurrent parsing correctness
+PASS progress publishing never queues UI delegates
+PASS fifty thousand progress reports merge into one pending packet
+BENCHMARK mailbox 50000 reports=4ms; delivered=1
+PASS cancelled import never publishes a source or touches a game
+PASS ZIP entry limit remains enforced before publishing
+PASS stored manager diagnostics switch to Simplified Chinese
+PASS nested stored errors localize without changing file identifiers
+PASS diagnostic localization preserves technical paths
+PASS zh-TW: overview is replaced by a localized guide
+PASS zh-TW: guide contains six practical steps without invented statistics
+PASS zh-TW: guide localizes in zh-TW
+PASS en-US: guide localizes in en-US
+PASS zh-CN: guide localizes in zh-CN
+PASS zh-CN: Alt+Down opens the themed selector menu
+PASS zh-CN: late progress cannot overwrite a completed or cancelled result
+PASS zh-CN: UI heartbeat continues during forty thousand progress events
+PASS zh-CN: progress pumping stays bounded under load
+BENCHMARK UI heartbeat pulses=21 maxGap=49ms; progress received=40002 delivered=7
+PASS zh-CN: ZIP import updates the catalog without rescanning Workshop
+PASS zh-CN: incremental import preserves the independent original source
+PASS zh-CN: archive removes only the affected catalog source without rescanning
+PASS zh-CN: incremental archive preserves external source files
+PASS zh-CN: themed detail scrolling does not select or change text
+PASS zh-CN: main lists and selectors use the shared controls
+PASS zh-CN: hidden scrollable pages do not starve the message loop
+PASS zh-CN: themed grid scrollbar moves through actual rows

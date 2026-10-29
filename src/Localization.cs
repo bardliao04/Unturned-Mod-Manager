@@ -9,8 +9,8 @@ namespace UnturnedModManager {
   public static readonly string[] Languages={"zh-TW","en-US","zh-CN"};
   static readonly Dictionary<string,Dictionary<string,string>> tables=Load();
   static readonly Dictionary<string,string> reverse=Reverse();
-  static Dictionary<string,string> Reverse(){var map=new Dictionary<string,string>(StringComparer.Ordinal);foreach(var table in tables.Values)foreach(var pair in table)if(!map.ContainsKey(pair.Value))map[pair.Value]=pair.Key;return map;}
-  static readonly KeyValuePair<string,string>[] prefixes=tables.Values.SelectMany(t=>t).Where(p=>(p.Value.Length>=4||p.Key=="Text131"||p.Key=="Text132"||p.Key=="Text210")&&p.Value.IndexOf('\n')<0).OrderByDescending(p=>p.Value.Length).ToArray();
+  static Dictionary<string,string> Reverse(){var map=new Dictionary<string,string>(StringComparer.Ordinal);foreach(var table in tables.Values)foreach(var pair in table)if(!map.ContainsKey(pair.Value))map[pair.Value]=pair.Key=="LegacyOwnedMismatch"?"Text163":pair.Key;return map;}
+  static readonly KeyValuePair<string,string>[] prefixes=tables.Values.SelectMany(t=>t).Select(p=>new KeyValuePair<string,string>(p.Key=="LegacyOwnedMismatch"?"Text163":p.Key,p.Value)).Where(p=>(p.Value.Length>=4||p.Key=="Text131"||p.Key=="Text132"||p.Key=="Text210")&&p.Value.IndexOf('\n')<0).OrderByDescending(p=>p.Value.Length).ToArray();
   static string language="zh-TW";
   public static string Language {get{return language;}set{language=Languages.Contains(value)?value:"zh-TW";}}
   static Dictionary<string,Dictionary<string,string>> Load(){var result=new Dictionary<string,Dictionary<string,string>>();foreach(string code in Languages){using(var stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("UnturnedModManager.Resources."+code+".json")){if(stream==null)throw new InvalidOperationException("Missing language resource: "+code);using(var reader=new StreamReader(stream))result[code]=new JavaScriptSerializer().Deserialize<Dictionary<string,string>>(reader.ReadToEnd());}}return result;}

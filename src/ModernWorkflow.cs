@@ -52,7 +52,7 @@ namespace UnturnedModManager {
   Package LatestPackage(Row row){return row.Options!=null&&row.Options.Count>0&&row.Options.All(o=>VersionOrder.Comparable(o.Package.Manifest.version))?row.Options[0].Package:null;}
   bool HasUpdate(Row row){var latest=LatestPackage(row);return row.Installed!=null&&latest!=null&&VersionOrder.Newer(latest.Manifest.version,row.Installed.version);}
   string ShortPath(string path){return path==null?"—":path.Length<=58?path:path.Substring(0,24)+" … "+path.Substring(path.Length-29);}
-  string RawName(Row row){return row.Package==null?(row.Installed.id=="unturned.ai.tchinese"?L.Get("CoreTranslation"):L.Text(row.Installed.name)):ModNames.Display(row.Package);}
+  string RawName(Row row){return row.Package==null?(row.Installed.retained?L.Get("RetainedFiles")+" · "+row.Installed.version:row.Installed.id=="unturned.ai.tchinese"?L.Get("CoreTranslation"):L.Text(row.Installed.name)):ModNames.Display(row.Package);}
   string DisplayRowName(Row row){int count;string name=RawName(row);return nameCounts.TryGetValue(name,out count)&&count>1?name+" ["+RowId(row)+"]":name;}
   Row CurrentRowModel(){return grid.CurrentRow==null||grid.CurrentRow.Index>=rows.Count?null:rows[grid.CurrentRow.Index];}
   string RowId(Row r){return r.Package==null?r.Installed.id:r.Package.Manifest.id;}

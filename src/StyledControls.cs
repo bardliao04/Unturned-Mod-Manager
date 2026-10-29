@@ -25,8 +25,36 @@ namespace UnturnedModManager {
  }
  public class SmoothGrid : DataGridView {
   internal ScrollSurface Skin;
+  internal Action<int> DirectCheck;
+  int pressedCheck=-1;
   public SmoothGrid(){DoubleBuffered=true;}
-  protected override void WndProc(ref Message m){if(m.Msg==0x20A&&Skin!=null){int delta=(short)((long)m.WParam>>16);Skin.Wheel(delta);m.Result=IntPtr.Zero;return;}base.WndProc(ref m);}
+  protected override void WndProc(ref Message m){
+   // These grids use EditProgrammatically for the themed version picker. Handle
+   // checkbox gestures independently so native edit activation cannot swallow them.
+   if(Enabled&&DirectCheck!=null){
+    if(m.Msg==0x201||m.Msg==0x203){
+     var hit=HitTest((short)((long)m.LParam&65535),(short)((long)m.LParam>>16));
+     if(hit.ColumnIndex==0&&hit.RowIndex>=0&&!Rows[hit.RowIndex].Cells[0].ReadOnly){
+      Focus();CurrentCell=Rows[hit.RowIndex].Cells[0];pressedCheck=hit.RowIndex;
+      Capture=true;m.Result=IntPtr.Zero;return;
+     }
+    }
+    if(m.Msg==0x202&&pressedCheck>=0){
+     int prior=pressedCheck;pressedCheck=-1;Capture=false;
+     var hit=HitTest((short)((long)m.LParam&65535),(short)((long)m.LParam>>16));
+     if(hit.ColumnIndex==0&&hit.RowIndex==prior)DirectCheck(prior);
+     m.Result=IntPtr.Zero;return;
+    }
+    if(m.Msg==0x215)pressedCheck=-1; // Lost capture cancels an unfinished click.
+    if(CurrentCell!=null&&CurrentCell.ColumnIndex==0&&(int)m.WParam==0x20&&
+       (m.Msg==0x100||m.Msg==0x101||m.Msg==0x102)){
+     if(m.Msg==0x101)DirectCheck(CurrentCell.RowIndex);
+     m.Result=IntPtr.Zero;return;
+    }
+   }
+   if(m.Msg==0x20A&&Skin!=null){Skin.Wheel((short)((long)m.WParam>>16));m.Result=IntPtr.Zero;return;}
+   base.WndProc(ref m);
+  }
  }
  public class SectionPanel : Panel {
   public string TitleKey;string title;public string Title{get{return title;}set{title=value;Invalidate();}}

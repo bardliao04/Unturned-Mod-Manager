@@ -1,0 +1,9 @@
+Windows .NET Framework 4.8 build: PASS
+Localization: 443 matching keys per language
+Isolated suites: 455 PASS
+Real California 2 payload in isolated scopes: 22 PASS
+ZIP import of the same payload: 2 PASS
+ZIP extraction and packaged EXE launch: PASS
+Live user state: read-only audit only; no reconciliation committed
+Archive: Unturned-Mod-Manager-Reconciliation-preview.zip
+SHA-256: CF0E790CBDC591F26E5C8AACC5FDBEBA47925720F50D59300FE2EC4834FB8A10

@@ -18,8 +18,8 @@ namespace UnturnedModManager {
   public string displayVersion; public string description; public string afterInstall; public string afterInstallServer; public List<PackageFile> files;
  }
  public class Package { public string ServerIssue;public ModMetadata Metadata;public string MetadataIssue;public string Folder; public PackageManifest Manifest; public string Origin;public DateTime ModifiedUtc,ImportedUtc;public int ScanOrder; }
- public class OwnedFile { public string target; public string hash; public bool hadOriginal; public string originalHash; }
- public class InstalledPackage { public string id; public string name; public string version; public string kind; public string scopeId;public List<OwnedFile> files; }
+ public class OwnedFile {public string backupReference; public string target; public string hash; public bool hadOriginal; public string originalHash; }
+ public class InstalledPackage {public bool retained; public string id; public string name; public string version; public string kind; public string scopeId;public List<OwnedFile> files; }
  public class Registry { public string ownerGameRoot;public string scopeId;public string gameRoot; public List<InstalledPackage> packages = new List<InstalledPackage>(); }
  public class Snapshot {public string expectedHash;public bool expectedAbsent; public string target; public bool existed; public string hash; public string saved; }
  public class Journal {public int schemaVersion;public string gameRoot,ownerGameRoot,scopeId; public string priorRegistry; public bool hadRegistry; public List<Snapshot> files; }
@@ -148,7 +148,7 @@ namespace UnturnedModManager {
    var ids=new HashSet<string>(); var targets=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
    foreach(var p in r.packages) {
     if(p==null||p.id==null||!ids.Add(p.id)||p.files==null) throw new Exception(L.Get("Text160"));
-    foreach(var f in p.files) {Target(f.target); Paths.CheckTarget(f.target,p.kind,ScopeId); if(!targets.Add(f.target)||!Data.ValidHash(f.hash)||f.hadOriginal&&!Data.ValidHash(f.originalHash)) throw new Exception(L.Get("Text161"));}
+    foreach(var f in p.files) {Original(f);Target(f.target); Paths.CheckTarget(f.target,p.kind,ScopeId); if(!targets.Add(f.target)||!Data.ValidHash(f.hash)||f.hadOriginal&&!Data.ValidHash(f.originalHash)) throw new Exception(L.Get("Text161"));}
    } return r;
   }
   void CheckGame() {
@@ -158,8 +158,8 @@ namespace UnturnedModManager {
    if(p==null) return;
    foreach(var f in p.files) {
     string target=Target(f.target);
-    if(File.Exists(target)&&!Data.Same(Data.Hash(target),f.hash)) throw new Exception(L.Get("Text163")+f.target);
-    if(f.hadOriginal&&(!File.Exists(Original(f.target))||!Data.Same(Data.Hash(Original(f.target)),f.originalHash))) throw new Exception(L.Get("Text164")+f.target);
+    if(File.Exists(target)&&!Data.Same(Data.Hash(target),f.hash)) throw new InstalledContentChangedException(f.target);
+    if(f.hadOriginal&&(!File.Exists(Original(f))||!Data.Same(Data.Hash(Original(f)),f.originalHash))) throw new Exception(L.Get("Text164")+f.target);
    }
   }
   void Begin(IEnumerable<string> files,Dictionary<string,string> expected) {
@@ -206,17 +206,17 @@ namespace UnturnedModManager {
      string consent;
      if(!known&&exists&&!Data.Same(hash,f.sha256)&&(approved==null||!approved.TryGetValue(f.target,out consent)||!Data.Same(hash,consent))) throw new Exception(L.Get("Text173")+f.target);
      if(!exists||!Data.Same(hash,f.sha256)){Directory.CreateDirectory(Path.GetDirectoryName(staged));File.Copy(source,staged,true);if(!Data.Same(Data.Hash(staged),f.sha256))throw new Exception(L.Get("Text172"));changed.Add(f.target);}else LastUnchangedFiles++;
-     next.files.Add(new OwnedFile {target=f.target,hash=f.sha256,hadOriginal=known?prior.hadOriginal:exists,originalHash=known?prior.originalHash:hash});
+     next.files.Add(new OwnedFile {target=f.target,hash=f.sha256,hadOriginal=known?prior.hadOriginal:exists,originalHash=known?prior.originalHash:hash,backupReference=known?prior.backupReference:null});
      Progress(++count*30/m.files.Count,L.Get("Text174")+count+" / "+m.files.Count);
     }
     var nextTargets=new HashSet<string>(next.files.Select(f=>f.target),StringComparer.OrdinalIgnoreCase);var expected=next.files.ToDictionary(f=>f.target,f=>f.hash,StringComparer.OrdinalIgnoreCase);foreach(var f in oldFiles.Values)if(!expected.ContainsKey(f.target))expected[f.target]=f.hadOriginal?f.originalHash:null;Begin(changed.Concat(oldFiles.Keys.Where(path=>!nextTargets.Contains(path))),expected);
     try {
-     foreach(var f in next.files.Where(f=>f.hadOriginal&&!oldFiles.ContainsKey(f.target))) {string saved=Original(f.target);Directory.CreateDirectory(Path.GetDirectoryName(saved));File.Copy(Target(f.target),saved,true);if(!Data.Same(Data.Hash(saved),f.originalHash))throw new Exception(L.Get("Text175"));}
+     foreach(var f in next.files.Where(f=>f.hadOriginal&&!oldFiles.ContainsKey(f.target))) {string saved=Original(f);Directory.CreateDirectory(Path.GetDirectoryName(saved));File.Copy(Target(f.target),saved,true);if(!Data.Same(Data.Hash(saved),f.originalHash))throw new Exception(L.Get("Text175"));}
      count=0;
      foreach(var f in m.files) {string target=Target(f.target);if(changed.Contains(f.target)){Directory.CreateDirectory(Path.GetDirectoryName(target));File.Copy(Paths.Safe(stage,Data.Key(f.target)+".bin"),target,true);LastWrittenFiles++;if(!Data.Same(Data.Hash(target),f.sha256))throw new Exception(L.Get("Text176"));}if(FailAfter==count++)throw new Exception(L.Get("Text177"));Progress(30+count*60/m.files.Count,L.Get("Text178")+count+" / "+m.files.Count);}
      var names=new HashSet<string>(next.files.Select(f=>f.target),StringComparer.OrdinalIgnoreCase);
      foreach(var stale in oldFiles.Values.Where(f=>!names.Contains(f.target))) Restore(stale);
-     foreach(var f in m.files.Where(f=>!changed.Contains(f.target))){string target=Target(f.target);if(!File.Exists(target)||!Data.Same(Data.Hash(target),f.sha256))throw new Exception(L.Get("Text163")+f.target);}
+     foreach(var f in m.files.Where(f=>!changed.Contains(f.target))){string target=Target(f.target);if(!File.Exists(target)||!Data.Same(Data.Hash(target),f.sha256))throw new InstalledContentChangedException(f.target);}
      r.packages.RemoveAll(p=>p.id==m.id);r.packages.Add(next);Data.Write(RegistryPath,r);File.Delete(JournalPath);
     } catch {Recover();throw;}
     Progress(100,ModNames.Display(package)+L.Get("Text179")+" · "+string.Format(L.Get("FileOutcome"),LastWrittenFiles,LastUnchangedFiles));
@@ -234,7 +234,7 @@ namespace UnturnedModManager {
   Dictionary<string,string> ReadCollisions(Package package,Registry r){var old=r.packages.FirstOrDefault(p=>p.id==package.Manifest.id);var known=new HashSet<string>(old==null?new string[0]:old.files.Select(f=>f.target),StringComparer.OrdinalIgnoreCase);var result=new Dictionary<string,string>();
    foreach(var f in package.Manifest.files) {string target=Target(f.target);if(!known.Contains(f.target)&&File.Exists(target)&&!Data.Same(Data.Hash(target),f.sha256))result.Add(f.target,Data.Hash(target));}return result;
   }
-  void Restore(OwnedFile f) {string target=Target(f.target);if(f.hadOriginal){Directory.CreateDirectory(Path.GetDirectoryName(target));File.Copy(Original(f.target),target,true);}else if(File.Exists(target))File.Delete(target);}
+  void Restore(OwnedFile f) {string target=Target(f.target);if(f.hadOriginal){Directory.CreateDirectory(Path.GetDirectoryName(target));File.Copy(Original(f),target,true);}else if(File.Exists(target))File.Delete(target);}
   public void Uninstall(string id) {
    Locked(delegate {var r=ReadRegistry();var p=r.packages.FirstOrDefault(x=>x.id==id);if(p==null)throw new Exception(L.Get("Text180"));VerifyOwned(p);Begin(p.files.Select(f=>f.target),p.files.ToDictionary(f=>f.target,f=>f.hadOriginal?f.originalHash:null,StringComparer.OrdinalIgnoreCase));
     try {int i=0;foreach(var f in p.files){Restore(f);if(FailAfter==i++)throw new Exception(L.Get("Text181"));Progress(i*90/p.files.Count,L.Get("Text182")+i+" / "+p.files.Count);}r.packages.Remove(p);Data.Write(RegistryPath,r);File.Delete(JournalPath);}catch{Recover();throw;}Progress(100,p.name+L.Get("Text183"));});
@@ -264,7 +264,8 @@ namespace UnturnedModManager {
   public static string Explain(Exception ex) {
    string hint=L.Get("Text185");
    string m=L.ToTraditional(ex.Message);
-   if(ex is UnauthorizedAccessException || ex is System.Security.SecurityException)hint=L.Get("Text186");
+   if(ex is InstalledContentChangedException)hint=L.Get("ReconcileHint");
+   else if(ex is UnauthorizedAccessException || ex is System.Security.SecurityException)hint=L.Get("Text186");
    else if(ex is PathTooLongException)hint=L.Get("Text187");
    else if(ex is FileNotFoundException || ex is DirectoryNotFoundException)hint=L.Get("Text188");
    else if(ex is IOException){int code=ex.HResult&65535;hint=code==112||code==39?L.Get("Text189"):code==32||code==33?L.Get("Text190"):L.Get("Text191");}
