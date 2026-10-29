@@ -9,8 +9,9 @@ namespace UnturnedModManager {
   static int Priority(Package p){return L.Key(p.Origin)=="Text224"?0:L.Key(p.Origin)=="Text155"?1:2;}
   public static string Display(Package p){return string.IsNullOrWhiteSpace(p.Manifest.displayVersion)||p.Manifest.displayVersion==p.Manifest.version?p.Manifest.version:p.Manifest.displayVersion+" ("+p.Manifest.version+")";}
   public static List<VersionOption> Options(IEnumerable<Package> packages){
-   var list=packages.GroupBy(p=>Path.GetFullPath(p.Folder),StringComparer.OrdinalIgnoreCase).Select(g=>g.OrderBy(Priority).First()).OrderByDescending(p=>new Version(p.Manifest.version)).ThenBy(Priority).ThenBy(p=>p.Folder,StringComparer.OrdinalIgnoreCase).ToList();
-   return list.Select((p,i)=>new VersionOption{Key=p.Folder,Package=p,Label=Display(p)+(i==0?L.Get("Text230"):"")+(list.Count(q=>q.Manifest.version==p.Manifest.version)>1?" | "+L.Text(p.Origin):"")+(list.Count(q=>q.Manifest.version==p.Manifest.version&&q.Origin==p.Origin)>1?" · "+Data.Key(p.Folder).Substring(0,6):"")}).ToList();
+   var list=packages.GroupBy(p=>Path.GetFullPath(p.Folder),StringComparer.OrdinalIgnoreCase).Select(g=>g.OrderBy(Priority).First()).ToList();bool reliable=list.All(p=>VersionOrder.Comparable(p.Manifest.version));list=VersionOrder.Sort(list,reliable).ToList();if(reliable)list=list.OrderByDescending(p=>p.Manifest.version,Comparer<string>.Create((a,b)=>VersionOrder.Compare(a,b)??0)).ThenBy(Priority).ThenBy(p=>p.Folder,StringComparer.OrdinalIgnoreCase).ToList();
+   var counts=list.GroupBy(p=>p.Manifest.version).ToDictionary(g=>g.Key,g=>g.Count());var copies=list.GroupBy(p=>p.Manifest.version+"|"+p.Origin).ToDictionary(g=>g.Key,g=>g.Count());
+   return list.Select((p,i)=>new VersionOption{Key=p.Folder,Package=p,Label=Display(p)+(i==0&&reliable?L.Get("Text230"):"")+(counts[p.Manifest.version]>1?" | "+L.Text(p.Origin):"")+(copies[p.Manifest.version+"|"+p.Origin]>1?" · "+Data.Key(p.Folder).Substring(0,6):"")}).ToList();
   }
   public static VersionOption Choose(List<VersionOption> options,string saved){return options.FirstOrDefault(o=>Data.Same(o.Key,saved))??options.FirstOrDefault();}
   public static string ImportRoot(Package p,string store){
@@ -23,7 +24,7 @@ namespace UnturnedModManager {
   public static bool Under(string folder,string root){folder=Path.GetFullPath(folder).TrimEnd('\\');root=Path.GetFullPath(root).TrimEnd('\\');return Data.Same(folder,root)||folder.StartsWith(root+"\\",StringComparison.OrdinalIgnoreCase);}
   public static string RemoveImport(Package p,string store,Settings settings){
    string root=ImportRoot(p,store);var errors=new List<string>();var contents=Packages.Scan(root,L.Get("Text155"),errors,4);
-   if(errors.Count>0||contents.Count!=1||!Data.Same(contents[0].Folder,p.Folder)||contents[0].Manifest.id!=p.Manifest.id)throw new Exception(L.Get("Text233"));
+   if(errors.Count>0||contents.Select(x=>x.Folder).Distinct(StringComparer.OrdinalIgnoreCase).Count()!=1||!Data.Same(contents[0].Folder,p.Folder)||!contents.Any(x=>x.Manifest.id==p.Manifest.id))throw new Exception(L.Get("Text233"));
    string archive=Path.GetFullPath(Path.Combine(store,"RemovedImports",Guid.NewGuid().ToString("N")));Paths.CheckLinks(archive);Directory.CreateDirectory(Path.GetDirectoryName(archive));Directory.Move(root,archive);
    if(settings.packageFolders!=null)settings.packageFolders.RemoveAll(f=>Under(f,root));
    if(settings.versionChoices!=null)foreach(string key in settings.versionChoices.Where(k=>Under(k.Value,root)).Select(k=>k.Key).ToArray())settings.versionChoices.Remove(key);

@@ -1,3 +1,5 @@
+﻿> 此為上一階段深色原型的歷史報告。現行淺色介面及 California 2 相容性請見 [LIGHT-WORKSHOP-驗證報告.md](LIGHT-WORKSHOP-驗證報告.md)。
+
 # UI/UX 改版與三語系交付報告
 
 日期：2026-10-29。分支：`ui/desktop-localization`。此交付是待審查預覽版本，不發布 Release。

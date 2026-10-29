@@ -8,28 +8,29 @@ using System.Web.Script.Serialization;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using System.IO.Compression;
+using System.Threading;
 using Microsoft.Win32;
 
 namespace UnturnedModManager {
- public class PackageFile { public string source; public string target; public string sha256; }
+ public class PackageFile { public string source; public string target; public string sha256; public string source_sha256;public string source_file;public List<SourceDependency> source_dependencies; }
  public class PackageManifest {
-  public int schemaVersion; public string id; public string name; public string version; public string kind;
+  public string scopeId;public string packageIdentity;public int schemaVersion; public string id; public string name; public string version; public string kind;
   public string displayVersion; public string description; public string afterInstall; public string afterInstallServer; public List<PackageFile> files;
  }
- public class Package { public string Folder; public PackageManifest Manifest; public string Origin; }
+ public class Package { public string Folder; public PackageManifest Manifest; public string Origin;public DateTime ModifiedUtc,ImportedUtc;public int ScanOrder; }
  public class OwnedFile { public string target; public string hash; public bool hadOriginal; public string originalHash; }
- public class InstalledPackage { public string id; public string name; public string version; public string kind; public List<OwnedFile> files; }
- public class Registry { public string gameRoot; public List<InstalledPackage> packages = new List<InstalledPackage>(); }
+ public class InstalledPackage { public string id; public string name; public string version; public string kind; public string scopeId;public List<OwnedFile> files; }
+ public class Registry { public string ownerGameRoot;public string scopeId;public string gameRoot; public List<InstalledPackage> packages = new List<InstalledPackage>(); }
  public class Snapshot { public string target; public bool existed; public string hash; public string saved; }
- public class Journal { public string priorRegistry; public bool hadRegistry; public List<Snapshot> files; }
- public class LegacyVersion { public string product; public string version; public string manifest_sha256; public string display_version; }
- public class LegacyAsset { public string target; public string sha256; public string group; }
- public class Settings { public string language; public string gameRoot; public string serverRoot; public bool serverMode; public string workshopRoot; public List<string> packageFolders; public Dictionary<string,string> versionChoices; }
+ public class Journal {public string gameRoot,ownerGameRoot,scopeId; public string priorRegistry; public bool hadRegistry; public List<Snapshot> files; }
+ public class LegacyVersion { public string product; public string version; public string manifest_sha256; public string display_version;public string package_label;public string package_id; }
+ public class LegacyAsset { public string target; public string sha256; public string group;public string source_sha256;public string source_file;public List<SourceDependency> source_dependencies; }
+ public class Settings {public int uiSchema; public List<string> categories;public Dictionary<string,List<string>> modCategories;public List<string> expandedGroups;public string language; public string gameRoot; public string serverRoot; public bool serverMode; public string workshopRoot; public List<string> packageFolders; public Dictionary<string,string> versionChoices; }
  public class ModuleDescription {public List<ModuleRole> Assemblies;}
  public class ModuleRole {public string Path;public object Role;}
  public static class InstallTarget {
   public static bool IsRoot(string root,bool server){return !string.IsNullOrWhiteSpace(root)&&(File.Exists(Path.Combine(root,"Unturned.exe"))||server&&File.Exists(Path.Combine(root,"Unturned_Headless.exe")));}
-  public static string Instructions(Package p,bool server){return server?(string.IsNullOrWhiteSpace(p.Manifest.afterInstallServer)?L.Get("Text134"):p.Manifest.afterInstallServer):p.Manifest.afterInstall;}
+  public static string Instructions(Package p,bool server){return server?(string.IsNullOrWhiteSpace(p.Manifest.afterInstallServer)?L.Get("Text134"):p.Manifest.afterInstallServer):(p.Manifest.scopeId==null?"":L.Get("ScopedLocalizationGuide")+Environment.NewLine)+(p.Manifest.packageIdentity!=null?L.Get("Text147"):p.Manifest.afterInstall);}
   public static bool SupportsServer(Package p,out string reason){
    reason="";if(p.Manifest.kind!="module"){reason=L.Get("Text135");return false;}
    try{foreach(var file in p.Manifest.files.Where(f=>f.target.EndsWith(".module",StringComparison.OrdinalIgnoreCase))){var config=Data.Read<ModuleDescription>(Paths.Safe(p.Folder,file.source));if(config==null||config.Assemblies==null)continue;
@@ -43,12 +44,13 @@ namespace UnturnedModManager {
   public static void Validate(Package p,bool server){string reason;if(server&&!SupportsServer(p,out reason))throw new Exception(reason);}
  }
  public static class Data {
+  static readonly object JsonGate=new object();
   static JavaScriptSerializer Json = new JavaScriptSerializer { MaxJsonLength = 33554432 };
-  public static T Read<T>(string file) { return Json.Deserialize<T>(File.ReadAllText(file, Encoding.UTF8)); }
-  public static T Parse<T>(string value) { return Json.Deserialize<T>(value); }
+  public static T Read<T>(string file) { string text=File.ReadAllText(file,Encoding.UTF8);lock(JsonGate)return Json.Deserialize<T>(text); }
+  public static T Parse<T>(string value) {lock(JsonGate)return Json.Deserialize<T>(value); }
   public static void Write(string file, object value) {
    Directory.CreateDirectory(Path.GetDirectoryName(file)); string temp = file + ".tmp";
-   File.WriteAllText(temp, Json.Serialize(value), new UTF8Encoding(false));
+   string serialized;lock(JsonGate)serialized=Json.Serialize(value);File.WriteAllText(temp,serialized,new UTF8Encoding(false));
    if(File.Exists(file)) File.Replace(temp,file,null); else File.Move(temp,file);
   }
   public static string Hash(string file) { using(var sha=SHA256.Create()) using(var stream=File.OpenRead(file)) return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", "").ToLowerInvariant(); }
@@ -71,50 +73,53 @@ namespace UnturnedModManager {
    for(string p=Path.GetFullPath(path);p!=null;p=Path.GetDirectoryName(p))
     if((File.Exists(p)||Directory.Exists(p))&&(File.GetAttributes(p)&FileAttributes.ReparsePoint)!=0) throw new Exception(L.Get("Text141")+p);
   }
-  public static void CheckTarget(string target,string kind) {
+  public static void CheckTarget(string target,string kind,string scope=null) {
    var parts=target.Split('/');
    bool module = parts.Length>=3 && parts[0]=="Modules" && parts[1]!="Framework" && parts[1]!="Unturned" && parts[1]!="Rocket.Unturned";
    bool locale = target.StartsWith("Localization/Tchinese/",StringComparison.Ordinal)&&target.EndsWith(".dat",StringComparison.OrdinalIgnoreCase)
     || (target.StartsWith("Maps/",StringComparison.Ordinal)||target.StartsWith("Bundles/",StringComparison.Ordinal))&&target.EndsWith("/Tchinese.dat",StringComparison.OrdinalIgnoreCase);
+   if(scope!=null){if(kind!="localization")throw new Exception(L.Get("ScopeInvalid"));if(!Regex.IsMatch(scope,@"^\d{1,20}$"))throw new Exception(L.Get("ScopeInvalid"));locale=target.EndsWith("/Tchinese.dat",StringComparison.OrdinalIgnoreCase);}
    if(!(kind=="module"?module:kind=="localization"&&locale)) throw new Exception(L.Get("Text142")+target);
   }
  }
  public static class Packages {
   public const string ManifestName="unturned-manager.json";
-  public static Package Load(string folder,string origin) {
-   Paths.CheckLinks(folder); PackageManifest m;
-   if(File.Exists(Path.Combine(folder,ManifestName))) m=Data.Read<PackageManifest>(Path.Combine(folder,ManifestName));
-   else {
-    string dataFolder=Path.Combine(folder,"Data");string prefix="Data/";
-    if(!File.Exists(Path.Combine(dataFolder,"version.json"))){dataFolder=folder;prefix="";}
-    var legacy=Data.Read<LegacyVersion>(Path.Combine(dataFolder,"version.json"));
-    if(legacy.product!="Unturned.AI.Tchinese"||!Data.ValidHash(legacy.manifest_sha256)||!Data.Same(Data.Hash(Path.Combine(dataFolder,"manifest.json")),legacy.manifest_sha256))throw new Exception(L.Get("Text143"));
-    var assets=Data.Read<List<LegacyAsset>>(Path.Combine(dataFolder,"manifest.json"));
-    m=new PackageManifest {schemaVersion=1,id="unturned.ai.tchinese",name=L.Get("Text144"),version=legacy.version,kind="localization",description=L.Get("Text145")+legacy.display_version+L.Get("Text146"),afterInstall=L.Get("Text147"),files=assets.Where(a=>a.group!="escalation").Select(a=>new PackageFile {source=prefix+a.target,target=a.target,sha256=a.sha256}).ToList()};
-   }
-   if(m.schemaVersion!=1 || m.id==null || !Regex.IsMatch(m.id,"^[a-z0-9][a-z0-9.-]{0,79}$") || string.IsNullOrWhiteSpace(m.name) || m.name.Length>120 || (m.kind!="module"&&m.kind!="localization") || m.files==null || m.files.Count==0 || m.files.Count>20000) throw new Exception(L.Get("Text148"));
-   Version v; if(!Version.TryParse(m.version,out v)) throw new Exception(L.Get("Text149"));
-   var targets=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-   foreach(var f in m.files) {
-    if(f==null) throw new Exception(L.Get("Text150"));
-    Paths.Safe(folder,f.source,false); Paths.Safe(folder,f.target,false); Paths.CheckTarget(f.target,m.kind);
-    if(!Data.ValidHash(f.sha256)||!targets.Add(f.target)) throw new Exception(L.Get("Text151"));
-   }
-   return new Package { Folder=Path.GetFullPath(folder), Manifest=m, Origin=origin };
+  public static Package Load(string folder,string origin){return LoadAll(folder,origin).First();}
+  public static Package Reload(Package package){return LoadAll(package.Folder,package.Origin).Single(p=>p.Manifest.id==package.Manifest.id);}
+  public static List<Package> LoadAll(string folder,string origin){
+   Paths.CheckLinks(folder);var result=new List<Package>();string metadata=Path.Combine(folder,ManifestName);
+   if(File.Exists(metadata)){var manifest=Data.Read<PackageManifest>(metadata);ValidateManifest(manifest,folder);result.Add(Wrap(folder,origin,manifest,metadata));return result;}
+   string dataFolder=Path.Combine(folder,"Data"),prefix="Data/";if(!File.Exists(Path.Combine(dataFolder,"version.json"))){dataFolder=folder;prefix="";}
+   var legacy=Data.Read<LegacyVersion>(Path.Combine(dataFolder,"version.json"));metadata=Path.Combine(dataFolder,"manifest.json");
+   if(legacy==null||legacy.product!="Unturned.AI.Tchinese"||!Data.ValidHash(legacy.manifest_sha256)||!Data.Same(Data.Hash(metadata),legacy.manifest_sha256))throw new Exception(L.Get("Text143"));
+   var assets=Data.Read<List<LegacyAsset>>(metadata);if(assets==null||assets.Any(f=>f==null||string.IsNullOrEmpty(f.target)))throw new Exception(L.Get("Text150"));
+   string identity=(string.IsNullOrWhiteSpace(legacy.package_id)||legacy.package_id=="official"||legacy.package_id=="base"||legacy.package_id=="core")?"unturned.ai.tchinese":"unturned.ai.tchinese."+legacy.package_id;
+   var profiles=File.Exists(Path.Combine(dataFolder,"profiles.json"))?Data.Read<List<PackageScope>>(Path.Combine(dataFolder,"profiles.json")):new List<PackageScope>();
+   foreach(var group in assets.Where(f=>f.group!="escalation").GroupBy(f=>f.target.StartsWith("Workshop/",StringComparison.Ordinal)?f.target.Split('/')[1]:"base")){
+    string scope=group.Key=="base"?null:group.Key;if(scope!=null&&!Regex.IsMatch(scope,@"^\d{1,20}$"))throw new Exception(L.Get("ScopeInvalid"));string targetPrefix=scope==null?"":"Workshop/"+scope+"/";var profile=profiles==null?null:profiles.FirstOrDefault(p=>p.id==group.Key);
+    var manifest=new PackageManifest{schemaVersion=1,id=identity+(scope==null?"":".workshop."+scope),packageIdentity=identity,scopeId=scope,name=string.IsNullOrWhiteSpace(legacy.package_label)?L.Get("Text144"):legacy.package_label,version=legacy.version,displayVersion=legacy.display_version,kind="localization",description=profile==null?"":profile.label,afterInstall=L.Get("Text147"),files=group.Select(f=>new PackageFile{source=prefix+f.target,target=scope==null?f.target:f.target.Substring(targetPrefix.Length),sha256=f.sha256,source_sha256=f.source_sha256,source_file=f.source_file,source_dependencies=f.source_dependencies}).ToList()};
+    if(scope!=null)manifest.name+=" · Workshop "+scope;ValidateManifest(manifest,folder);result.Add(Wrap(folder,origin,manifest,metadata));
+   }if(result.Count==0)throw new Exception(L.Get("Text150"));return result;
+  }
+  static Package Wrap(string folder,string origin,PackageManifest manifest,string metadata){return new Package{Folder=Path.GetFullPath(folder),Origin=origin,Manifest=manifest,ModifiedUtc=File.GetLastWriteTimeUtc(metadata),ImportedUtc=folder.IndexOf(Path.DirectorySeparatorChar+"imports"+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase)>=0?Directory.GetCreationTimeUtc(folder):DateTime.MinValue};}
+  static void ValidateManifest(PackageManifest m,string folder){
+   if(m==null||m.schemaVersion!=1||m.id==null||!Regex.IsMatch(m.id,"^[a-z0-9][a-z0-9.-]{0,159}$")||string.IsNullOrWhiteSpace(m.name)||m.name.Length>200||(m.kind!="module"&&m.kind!="localization")||m.files==null||m.files.Count==0||m.files.Count>20000)throw new Exception(L.Get("Text148"));
+   if(!VersionOrder.Valid(m.version))throw new Exception(L.Get("Text149"));if(m.scopeId!=null&&m.kind!="localization")throw new Exception(L.Get("ScopeInvalid"));var targets=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+   foreach(var f in m.files){if(f==null)throw new Exception(L.Get("Text150"));Paths.Safe(folder,f.source,false);Paths.Safe(folder,f.target,false);Paths.CheckTarget(f.target,m.kind,m.scopeId);if(!Data.ValidHash(f.sha256)||!targets.Add(f.target))throw new Exception(L.Get("Text151"));}
   }
   public static List<Package> Scan(string root,string origin,List<string> errors,int maxDepth) {
-   var list=new List<Package>(); if(!Directory.Exists(root)) return list;
+   ScanSession.Check();var list=new List<Package>(); if(!Directory.Exists(root)) return list;
    ScanInto(root,origin,errors,maxDepth,list); return list;
   }
   static void ScanInto(string folder,string origin,List<string> errors,int depth,List<Package> result) {
    try {
-    Paths.CheckLinks(folder);
-    if(File.Exists(Path.Combine(folder,ManifestName)) || File.Exists(Path.Combine(folder,"Data","version.json")) || File.Exists(Path.Combine(folder,"version.json"))&&File.Exists(Path.Combine(folder,"manifest.json"))) { result.Add(Load(folder,origin)); return; }
+    ScanSession.Check();if(ScanSession.Current!=null&&!ScanSession.Current.Visited.Add(Path.GetFullPath(folder)))return;Paths.CheckLinks(folder);
+    if(File.Exists(Path.Combine(folder,ManifestName)) || File.Exists(Path.Combine(folder,"Data","version.json")) || File.Exists(Path.Combine(folder,"version.json"))&&File.Exists(Path.Combine(folder,"manifest.json"))) { result.AddRange(ScanCache.Read(folder,origin)); return; }
     if(depth<=0) return;
-    foreach(string child in Directory.GetDirectories(folder)) {
+    foreach(string child in Directory.GetDirectories(folder).OrderBy(p=>p,StringComparer.OrdinalIgnoreCase)) {
      if((File.GetAttributes(child)&FileAttributes.ReparsePoint)==0) ScanInto(child,origin,errors,depth-1,result);
     }
-   } catch(Exception ex) { errors.Add(folder+"："+Problems.Explain(ex)); }
+   } catch(OperationCanceledException){throw;}catch(Exception ex) { errors.Add(folder+"："+Problems.Explain(ex)); }
   }
   public static Package ImportZip(string zip,string cache) {
    string dest=Path.Combine(cache,"imports",Guid.NewGuid().ToString("N")); Directory.CreateDirectory(dest);
@@ -131,29 +136,29 @@ namespace UnturnedModManager {
     }
    }
    var errors=new List<string>(); var found=Scan(dest,L.Get("Text155"),errors,4);
-   if(found.Count!=1 || errors.Count!=0) throw new Exception(L.Get("Text156")+string.Join("\n",errors));
+   if(found.Count==0 || found.Select(p=>p.Folder).Distinct(StringComparer.OrdinalIgnoreCase).Count()!=1 || errors.Count!=0) throw new Exception(L.Get("Text156")+string.Join("\n",errors));
    return found[0];
   }
  }
  public class Engine {
-  public readonly string Root, State; public readonly bool ServerMode;public Action<int,string> Progress=delegate{}; public bool TestMode; public int FailAfter=-1;
+  public readonly string Root, State,GameRoot,ScopeId; public readonly bool ServerMode;public Action<int,string> Progress=delegate{}; public bool TestMode; public int FailAfter=-1;
   string RegistryPath { get { return Path.Combine(State,"installed.json"); } }
   string JournalPath { get { return Path.Combine(State,"pending.json"); } }
-  public Engine(string root,string stateBase,bool test=false,bool server=false) {
-   Root=Path.GetFullPath(root).TrimEnd('\\'); Paths.CheckLinks(Root);
-   if(!InstallTarget.IsRoot(Root,server)) throw new Exception(server?L.Get("Text157"):L.Get("Text158"));
-   ServerMode=server;
+  public Engine(string root,string stateBase,bool test=false,bool server=false,string scope=null,IEnumerable<string> workshopRoots=null) {
+   GameRoot=Path.GetFullPath(root).TrimEnd('\\');Paths.CheckLinks(GameRoot);
+   if(!InstallTarget.IsRoot(GameRoot,server)) throw new Exception(server?L.Get("Text157"):L.Get("Text158"));
+   if(scope!=null&&server)throw new Exception(L.Get("Text135"));ScopeId=scope;Root=scope==null?GameRoot:WorkshopTargets.Resolve(GameRoot,scope,workshopRoots);Paths.CheckLinks(Root);ServerMode=server;
    State=Path.Combine(stateBase,"Installs",Data.Key(Root)); Paths.CheckLinks(State); TestMode=test;
   }
-  string Target(string rel) { return Paths.Safe(Root,rel); }
+  string Target(string rel) { Paths.CheckTarget(rel,ScopeId!=null?"localization":rel.StartsWith("Modules/",StringComparison.Ordinal)?"module":"localization",ScopeId);return Paths.Safe(Root,rel); }
   string Original(string rel) { return Paths.Safe(State,"original/"+Data.Key(rel)+".bak"); }
   public Registry ReadRegistry() {
-   if(!File.Exists(RegistryPath)) return new Registry {gameRoot=Root};
-   var r=Data.Read<Registry>(RegistryPath); if(!Data.Same(r.gameRoot,Root)||r.packages==null) throw new Exception(L.Get("Text159"));
+   if(!File.Exists(RegistryPath)) return new Registry {gameRoot=Root,ownerGameRoot=GameRoot,scopeId=ScopeId};
+   var r=Data.Read<Registry>(RegistryPath); if(!Data.Same(r.gameRoot,Root)||r.scopeId!=ScopeId||r.packages==null) throw new Exception(L.Get("Text159"));
    var ids=new HashSet<string>(); var targets=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
    foreach(var p in r.packages) {
     if(p==null||p.id==null||!ids.Add(p.id)||p.files==null) throw new Exception(L.Get("Text160"));
-    foreach(var f in p.files) {Target(f.target); Paths.CheckTarget(f.target,p.kind); if(!targets.Add(f.target)||!Data.ValidHash(f.hash)||f.hadOriginal&&!Data.ValidHash(f.originalHash)) throw new Exception(L.Get("Text161"));}
+    foreach(var f in p.files) {Target(f.target); Paths.CheckTarget(f.target,p.kind,ScopeId); if(!targets.Add(f.target)||!Data.ValidHash(f.hash)||f.hadOriginal&&!Data.ValidHash(f.originalHash)) throw new Exception(L.Get("Text161"));}
    } return r;
   }
   void CheckGame() {
@@ -168,7 +173,7 @@ namespace UnturnedModManager {
    }
   }
   void Begin(IEnumerable<string> files) {
-   string token=Guid.NewGuid().ToString("N"); var j=new Journal {hadRegistry=File.Exists(RegistryPath),priorRegistry=File.Exists(RegistryPath)?File.ReadAllText(RegistryPath):null,files=new List<Snapshot>()};
+   string token=Guid.NewGuid().ToString("N"); var j=new Journal {gameRoot=Root,ownerGameRoot=GameRoot,scopeId=ScopeId,hadRegistry=File.Exists(RegistryPath),priorRegistry=File.Exists(RegistryPath)?File.ReadAllText(RegistryPath):null,files=new List<Snapshot>()};
    int i=0;
    foreach(string rel in files.Distinct(StringComparer.OrdinalIgnoreCase)) {
     string target=Target(rel), saved="transactions/"+token+"/"+(i++)+".bak"; bool exists=File.Exists(target);
@@ -179,7 +184,7 @@ namespace UnturnedModManager {
   void Recover() {
    if(!File.Exists(JournalPath)) return;
    Progress(0,L.Get("Text165")); var j=Data.Read<Journal>(JournalPath);
-   if(j.files==null) throw new Exception(L.Get("Text166"));
+   if(j.gameRoot!=null&&(!Data.Same(j.gameRoot,Root)||j.scopeId!=ScopeId))throw new Exception(L.Get("Text166"));if(j.files==null) throw new Exception(L.Get("Text166"));
    foreach(var f in j.files) {Target(f.target); string saved=Paths.Safe(State,f.saved);if(f.existed&&(!File.Exists(saved)||!Data.Same(Data.Hash(saved),f.hash))) throw new Exception(L.Get("Text167"));}
    foreach(var f in j.files) {string target=Target(f.target);if(f.existed) {Directory.CreateDirectory(Path.GetDirectoryName(target));File.Copy(Paths.Safe(State,f.saved),target,true);}else if(File.Exists(target))File.Delete(target);}
    if(j.hadRegistry) {string temp=RegistryPath+".recover";File.WriteAllText(temp,j.priorRegistry,Encoding.UTF8);if(File.Exists(RegistryPath))File.Replace(temp,RegistryPath,null);else File.Move(temp,RegistryPath);}
@@ -194,14 +199,14 @@ namespace UnturnedModManager {
   }
   public void Install(Package package,Dictionary<string,string> approved,bool allowDowngrade=false) {
    Locked(delegate {
-    package=Packages.Load(package.Folder,package.Origin);InstallTarget.Validate(package,ServerMode);var m=package.Manifest;var r=ReadRegistry();var old=r.packages.FirstOrDefault(p=>p.id==m.id);
-    if(old!=null && new Version(old.version)>new Version(m.version)&&!allowDowngrade) throw new Exception(L.Get("Text168"));
+    package=Packages.Reload(package);if(package.Manifest.scopeId!=ScopeId)throw new Exception(L.Get("ScopeInvalid"));WorkshopTargets.VerifySources(package,Root);InstallTarget.Validate(package,ServerMode);var m=package.Manifest;var r=ReadRegistry();var old=r.packages.FirstOrDefault(p=>p.id==m.id);
+    if(old!=null && (VersionOrder.Newer(old.version,m.version)||VersionOrder.Compare(old.version,m.version)==null)&&!allowDowngrade) throw new Exception(L.Get("Text168"));
     if(old!=null && old.kind!=m.kind) throw new Exception(L.Get("Text169"));
     VerifyOwned(old);
     var oldFiles=old==null?new Dictionary<string,OwnedFile>(StringComparer.OrdinalIgnoreCase):old.files.ToDictionary(f=>f.target,StringComparer.OrdinalIgnoreCase);
     var otherFiles=new HashSet<string>(r.packages.Where(p=>p.id!=m.id).SelectMany(p=>p.files.Select(f=>f.target)),StringComparer.OrdinalIgnoreCase);
     string stage=Path.Combine(State,"staging",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(stage);
-    var next=new InstalledPackage {id=m.id,name=m.name,version=m.version,kind=m.kind,files=new List<OwnedFile>()}; int count=0;
+    var next=new InstalledPackage {id=m.id,name=m.name,version=m.version,kind=m.kind,scopeId=ScopeId,files=new List<OwnedFile>()}; int count=0;
     foreach(var f in m.files) {
      if(otherFiles.Contains(f.target)) throw new Exception(L.Get("Text170")+f.target);
      string source=Paths.Safe(package.Folder,f.source), staged=Paths.Safe(stage,Data.Key(f.target)+".bin"),target=Target(f.target);
@@ -227,7 +232,7 @@ namespace UnturnedModManager {
    });
   }
   public Dictionary<string,string> Collisions(Package package) {
-   InstallTarget.Validate(package,ServerMode);
+   if(package.Manifest.scopeId!=ScopeId)throw new Exception(L.Get("ScopeInvalid"));WorkshopTargets.VerifySources(package,Root);InstallTarget.Validate(package,ServerMode);
    var r=ReadRegistry();var old=r.packages.FirstOrDefault(p=>p.id==package.Manifest.id);var known=new HashSet<string>(old==null?new string[0]:old.files.Select(f=>f.target),StringComparer.OrdinalIgnoreCase);var result=new Dictionary<string,string>();
    foreach(var f in package.Manifest.files) {string target=Target(f.target);if(!known.Contains(f.target)&&File.Exists(target)&&!Data.Same(Data.Hash(target),f.sha256))result.Add(f.target,Data.Hash(target));}return result;
   }
@@ -275,10 +280,11 @@ namespace UnturnedModManager {
   }
  }
  public class ScanResult {
-  public string Game,Workshop; public bool FoundGame; public List<Package> Available=new List<Package>();public List<InstalledPackage> Installed=new List<InstalledPackage>();public List<string> Issues=new List<string>();public int Roots;
+  public int ParsedPackages,CacheHits,VisitedDirectories;public long ElapsedMilliseconds;public List<string> PendingScopes=new List<string>();public List<string> WorkshopRoots=new List<string>();public string Game,Workshop; public bool FoundGame; public List<Package> Available=new List<Package>();public List<InstalledPackage> Installed=new List<InstalledPackage>();public List<string> Issues=new List<string>();public int Roots;
  }
  public static class Scanner {
-  public static ScanResult Collect(string home,string store,string game,string workshop,IEnumerable<string> folders,IEnumerable<string> libraries,bool find,Action<int,string> report,bool server=false) {
+  public static ScanResult Collect(string home,string store,string game,string workshop,IEnumerable<string> folders,IEnumerable<string> libraries,bool find,Action<int,string> report,bool server=false,CancellationToken cancellation=default(CancellationToken)) {
+   using(var session=new ScanSession(cancellation)){var timer=Stopwatch.StartNew();
    var r=new ScanResult{Game=string.IsNullOrWhiteSpace(game)?"":Path.GetFullPath(game),Workshop=string.IsNullOrWhiteSpace(workshop)?"":Path.GetFullPath(workshop)};var libs=libraries.ToList();
    string targetName=server?L.Get("Text060"):L.Get("Text061");
    if(find){report(0,L.Get("Text211")+targetName+L.Get("Text212"));var games=SteamFinder.Targets(libs,server,r.Issues);
@@ -295,9 +301,10 @@ namespace UnturnedModManager {
    if(!string.IsNullOrWhiteSpace(r.Workshop))roots[r.Workshop]=r.Workshop.Replace('\\','/').TrimEnd('/').EndsWith("/steamapps/workshop/content/304930",StringComparison.OrdinalIgnoreCase)?L.Get("Text224"):L.Get("Text225");
    foreach(string lib in libs)roots[Path.Combine(lib,"steamapps","workshop","content","304930")]=L.Get("Text224");
    foreach(var pair in roots){if(!Directory.Exists(pair.Key))continue;report(0,L.Get("Text226")+pair.Key);r.Roots++;r.Available.AddRange(Packages.Scan(pair.Key,pair.Value,r.Issues,5));}
-   foreach(string folder in folders)try{r.Available.Add(Packages.Load(folder,L.Get("Text227")));}catch(Exception ex){r.Issues.Add(folder+"："+Problems.Explain(ex));}
-   if(InstallTarget.IsRoot(r.Game,server))try{var e=new Engine(r.Game,store,false,server);r.Installed=e.ReadRegistry().packages;if(e.NeedsRecovery)r.Issues.Add(L.Get("Text228"));}catch(Exception ex){r.Issues.Add(L.Get("Text229")+Problems.Explain(ex));}
-   return r;
+   foreach(string folder in folders)try{ScanSession.Check();if(session.Visited.Add(Path.GetFullPath(folder)))r.Available.AddRange(ScanCache.Read(folder,L.Get("Text227")));}catch(Exception ex){r.Issues.Add(folder+"："+Problems.Explain(ex));}
+   if(InstallTarget.IsRoot(r.Game,server))try{var e=new Engine(r.Game,store,false,server);r.Installed=e.ReadRegistry().packages;r.WorkshopRoots=WorkshopTargets.ContentRoots(r.Game,libs,r.Workshop);if(!server){var scopes=r.Available.Select(p=>p.Manifest.scopeId).Where(id=>id!=null).ToList();string installs=Path.Combine(store,"Installs");if(Directory.Exists(installs))foreach(string record in Directory.GetDirectories(installs).SelectMany(d=>new[]{"installed.json","pending.json"}.Select(name=>Path.Combine(d,name))).Where(File.Exists)){try{var saved=Data.Read<Registry>(record);if(saved.scopeId!=null&&Data.Same(saved.ownerGameRoot,r.Game))scopes.Add(saved.scopeId);}catch(Exception ex){r.Issues.Add(record+": "+Problems.Explain(ex));}}foreach(string scope in scopes.Distinct())try{var scoped=new Engine(r.Game,store,false,false,scope,r.WorkshopRoots);r.Installed.AddRange(scoped.ReadRegistry().packages);if(scoped.NeedsRecovery){r.PendingScopes.Add(scope);r.Issues.Add(L.Get("Text228")+" Workshop "+scope);}}catch(Exception ex){r.Issues.Add(Problems.Explain(ex));}}if(e.NeedsRecovery)r.Issues.Add(L.Get("Text228"));}catch(Exception ex){r.Issues.Add(L.Get("Text229")+Problems.Explain(ex));}
+   ScanSession.Check();r.Available=r.Available.GroupBy(p=>p.Manifest.id+"|"+p.Folder,StringComparer.OrdinalIgnoreCase).Select(g=>g.First()).ToList();for(int i=0;i<r.Available.Count;i++)r.Available[i].ScanOrder=i;r.ParsedPackages=session.Parsed;r.CacheHits=session.CacheHits;r.VisitedDirectories=session.Visited.Count;r.ElapsedMilliseconds=timer.ElapsedMilliseconds;return r;
+   }
   }
  }
 }
