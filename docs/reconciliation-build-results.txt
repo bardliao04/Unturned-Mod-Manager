@@ -6,4 +6,5 @@ ZIP import of the same payload: 2 PASS
 ZIP extraction and packaged EXE launch: PASS
 Live user state: read-only audit only; no reconciliation committed
 Archive: Unturned-Mod-Manager-Reconciliation-preview.zip
-SHA-256: CF0E790CBDC591F26E5C8AACC5FDBEBA47925720F50D59300FE2EC4834FB8A10
+SHA-256: CC7089367AD45C2EBC77A6DC5A745169504DA888AFD555D165EFABAAADB32936
+CI: PASS https://github.com/bardliao04/Unturned-Mod-Manager/actions/runs/40926669520
