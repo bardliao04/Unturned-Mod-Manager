@@ -19,6 +19,7 @@ if (Test-Path -LiteralPath (Join-Path $projectRoot 'LIGHT-WORKSHOP-驗證報告.
 if (Test-Path -LiteralPath (Join-Path $projectRoot 'DASHBOARD-驗證報告.md')) { Copy-Item -LiteralPath (Join-Path $projectRoot 'DASHBOARD-驗證報告.md') -Destination $outputDir -Force }
 if (Test-Path -LiteralPath (Join-Path $projectRoot 'GUIDE-PERFORMANCE-驗證報告.md')) { Copy-Item -LiteralPath (Join-Path $projectRoot 'GUIDE-PERFORMANCE-驗證報告.md') -Destination $outputDir -Force }
 if (Test-Path -LiteralPath (Join-Path $projectRoot 'RECONCILIATION-驗證報告.md')) { Copy-Item -LiteralPath (Join-Path $projectRoot 'RECONCILIATION-驗證報告.md') -Destination $outputDir -Force }
+if (Test-Path -LiteralPath (Join-Path $projectRoot 'STARTUP-FIX-驗證報告.md')) { Copy-Item -LiteralPath (Join-Path $projectRoot 'STARTUP-FIX-驗證報告.md') -Destination $outputDir -Force }
 if ($Test) {
     $testExe = Join-Path $projectRoot 'TestResults\CoreTests.exe'
     New-Item -ItemType Directory -Path (Split-Path $testExe) -Force | Out-Null

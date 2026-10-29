@@ -13,7 +13,7 @@ namespace UnturnedModManager {
   protected override void OnPaint(PaintEventArgs e){Face(e.Graphics);}
   protected override void OnSelectedIndexChanged(EventArgs e){base.OnSelectedIndexChanged(e);Invalidate();}
   void Choices(){if(Items.Count==0)return;var menu=new ContextMenuStrip{Renderer=new ThemeMenuRenderer(),BackColor=Themes.Current.Surface,ForeColor=Themes.Current.Text,ShowImageMargin=false};for(int i=0;i<Items.Count;i++){int index=i;var item=new ToolStripMenuItem(GetItemText(Items[i])){Checked=SelectedIndex==i};item.Click+=delegate{SelectedIndex=index;};menu.Items.Add(item);}OpenChoices=menu;menu.Closed+=delegate{OpenChoices=null;MenuLifetime.Release(this,menu);Invalidate();};menu.Show(this,new Point(0,Height));}
-  protected override void WndProc(ref Message m){if(Enabled&&DropDownStyle==ComboBoxStyle.DropDownList&&(m.Msg==0x201||(m.Msg==0x100||m.Msg==0x104)&&((int)m.WParam==0x73||(int)m.WParam==0x20||(int)m.WParam==0x28&&((ModifierKeys&Keys.Alt)!=0||m.Msg==0x104)))){Focus();Choices();m.Result=IntPtr.Zero;return;}if(m.Msg==0x318&&m.WParam!=IntPtr.Zero){using(var graphics=Graphics.FromHdc(m.WParam))Face(graphics);m.Result=IntPtr.Zero;return;}base.WndProc(ref m);}
+  protected override void WndProc(ref Message m){if(Enabled&&DropDownStyle==ComboBoxStyle.DropDownList&&(m.Msg==0x201||(m.Msg==0x100||m.Msg==0x104)&&(m.WParam.ToInt64()==0x73||m.WParam.ToInt64()==0x20||m.WParam.ToInt64()==0x28&&((ModifierKeys&Keys.Alt)!=0||m.Msg==0x104)))){Focus();Choices();m.Result=IntPtr.Zero;return;}if(m.Msg==0x318&&m.WParam!=IntPtr.Zero){using(var graphics=Graphics.FromHdc(m.WParam))Face(graphics);m.Result=IntPtr.Zero;return;}base.WndProc(ref m);}
  }
  public class InputFrame : Panel {
   public InputFrame(){DoubleBuffered=true;Padding=new Padding(10,6,10,5);}
@@ -46,8 +46,10 @@ namespace UnturnedModManager {
      m.Result=IntPtr.Zero;return;
     }
     if(m.Msg==0x215)pressedCheck=-1; // Lost capture cancels an unfinished click.
-    if(CurrentCell!=null&&CurrentCell.ColumnIndex==0&&(int)m.WParam==0x20&&
-       (m.Msg==0x100||m.Msg==0x101||m.Msg==0x102)){
+    // WParam can hold a 64-bit pointer for unrelated messages. Check the
+    // message kind first and compare at pointer width; IntPtr.ToInt32 can throw.
+    if((m.Msg==0x100||m.Msg==0x101||m.Msg==0x102)&&
+       CurrentCell!=null&&CurrentCell.ColumnIndex==0&&m.WParam.ToInt64()==0x20){
      if(m.Msg==0x101)DirectCheck(CurrentCell.RowIndex);
      m.Result=IntPtr.Zero;return;
     }
