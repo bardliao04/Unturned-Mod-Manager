@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -19,7 +19,7 @@ namespace UnturnedModManager {
    }catch(Exception ex){LastIssue=L.Get("MetadataIgnored")+Environment.NewLine+file+Environment.NewLine+ex.GetType().Name;return null;}
   }
   public static string Display(ModMetadata data,string original,string id){string value;if(data!=null&&data.displayNames!=null&&(data.displayNames.TryGetValue(L.Language,out value)||data.displayNames.TryGetValue("zh-TW",out value))&&!string.IsNullOrWhiteSpace(value))return value;return !string.IsNullOrWhiteSpace(original)?original:id;}
-  public static string Display(Package p){return Display(p.Metadata,p.Manifest.name,p.Manifest.id);}
+  public static string Display(Package p){return Display(p.Metadata,p.Manifest.packageIdentity=="unturned.ai.tchinese"&&p.Manifest.scopeId==null?L.Get("CoreTranslation"):L.Text(p.Manifest.name),p.Manifest.id);}
   public static string Search(Package p){return string.Join(" ",new[]{p.Manifest.name,p.Manifest.id,p.Metadata==null?null:p.Metadata.workshopId,p.Metadata==null||p.Metadata.targetMap==null?null:p.Metadata.targetMap.name,p.Metadata==null||p.Metadata.displayNames==null?null:string.Join(" ",p.Metadata.displayNames.Values)}.Where(v=>v!=null));}
  }
 }

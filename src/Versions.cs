@@ -20,12 +20,13 @@ namespace UnturnedModManager {
    string part=folder.Substring(root.Length+1).Split('\\')[0];if(!Regex.IsMatch(part,"^[a-fA-F0-9]{32}$"))throw new Exception(L.Get("Text232"));
    string result=Path.GetFullPath(Path.Combine(root,part));Paths.CheckLinks(result);Paths.CheckLinks(folder);return result;
   }
+  public static bool InImportArea(Package p,string store){try{string root=Path.GetFullPath(Path.Combine(store,"imports")).TrimEnd('\\'),folder=Path.GetFullPath(p.Folder);if(!folder.StartsWith(root+"\\",StringComparison.OrdinalIgnoreCase))return false;return Regex.IsMatch(folder.Substring(root.Length+1).Split('\\')[0],"^[a-fA-F0-9]{32}$");}catch{return false;}}
   public static bool CanRemove(Package p,string store){try{ImportRoot(p,store);return true;}catch{return false;}}
   public static bool Under(string folder,string root){folder=Path.GetFullPath(folder).TrimEnd('\\');root=Path.GetFullPath(root).TrimEnd('\\');return Data.Same(folder,root)||folder.StartsWith(root+"\\",StringComparison.OrdinalIgnoreCase);}
   public static string RemoveImport(Package p,string store,Settings settings){
    string root=ImportRoot(p,store);var errors=new List<string>();var contents=Packages.Scan(root,L.Get("Text155"),errors,4);
    if(errors.Count>0||contents.Select(x=>x.Folder).Distinct(StringComparer.OrdinalIgnoreCase).Count()!=1||!Data.Same(contents[0].Folder,p.Folder)||!contents.Any(x=>x.Manifest.id==p.Manifest.id))throw new Exception(L.Get("Text233"));
-   string archive=Path.GetFullPath(Path.Combine(store,"RemovedImports",Guid.NewGuid().ToString("N")));Paths.CheckLinks(archive);Directory.CreateDirectory(Path.GetDirectoryName(archive));for(int attempt=0;;attempt++){try{Paths.CheckLinks(root);Paths.CheckLinks(archive);Directory.Move(root,archive);break;}catch(IOException ex){int code=ex.HResult&65535;if(attempt>=3||(code!=5&&code!=32&&code!=33))throw;System.Threading.Thread.Sleep(80*(attempt+1));}}
+   string archive=Path.GetFullPath(Path.Combine(store,"RemovedImports",Guid.NewGuid().ToString("N")));Paths.CheckLinks(archive);Directory.CreateDirectory(Path.GetDirectoryName(archive));Paths.MoveDirectoryChecked(root,archive);
    if(settings.packageFolders!=null)settings.packageFolders.RemoveAll(f=>Under(f,root));
    if(settings.versionChoices!=null)foreach(string key in settings.versionChoices.Where(k=>Under(k.Value,root)).Select(k=>k.Key).ToArray())settings.versionChoices.Remove(key);
    return archive;

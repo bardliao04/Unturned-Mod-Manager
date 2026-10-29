@@ -17,7 +17,7 @@ namespace UnturnedModManager {
   public string scopeId;public string packageIdentity;public int schemaVersion; public string id; public string name; public string version; public string kind;
   public string displayVersion; public string description; public string afterInstall; public string afterInstallServer; public List<PackageFile> files;
  }
- public class Package { public ModMetadata Metadata;public string MetadataIssue;public string Folder; public PackageManifest Manifest; public string Origin;public DateTime ModifiedUtc,ImportedUtc;public int ScanOrder; }
+ public class Package { public string ServerIssue;public ModMetadata Metadata;public string MetadataIssue;public string Folder; public PackageManifest Manifest; public string Origin;public DateTime ModifiedUtc,ImportedUtc;public int ScanOrder; }
  public class OwnedFile { public string target; public string hash; public bool hadOriginal; public string originalHash; }
  public class InstalledPackage { public string id; public string name; public string version; public string kind; public string scopeId;public List<OwnedFile> files; }
  public class Registry { public string ownerGameRoot;public string scopeId;public string gameRoot; public List<InstalledPackage> packages = new List<InstalledPackage>(); }
@@ -44,13 +44,13 @@ namespace UnturnedModManager {
   public static void Validate(Package p,bool server){string reason;if(server&&!SupportsServer(p,out reason))throw new Exception(reason);}
  }
  public static class Data {
-  static readonly object JsonGate=new object();
-  static JavaScriptSerializer Json = new JavaScriptSerializer { MaxJsonLength = 33554432 };
-  public static T Read<T>(string file) { string text=File.ReadAllText(file,Encoding.UTF8);lock(JsonGate)return Json.Deserialize<T>(text); }
-  public static T Parse<T>(string value) {lock(JsonGate)return Json.Deserialize<T>(value); }
+  [ThreadStatic] static JavaScriptSerializer json;
+  static JavaScriptSerializer Json{get{return json??(json=new JavaScriptSerializer{MaxJsonLength=33554432});}}
+  public static T Read<T>(string file) { string text=File.ReadAllText(file,Encoding.UTF8);return Json.Deserialize<T>(text); }
+  public static T Parse<T>(string value) {return Json.Deserialize<T>(value); }
   public static void Write(string file, object value) {
    Directory.CreateDirectory(Path.GetDirectoryName(file)); string temp = file + ".tmp";
-   string serialized;lock(JsonGate)serialized=Json.Serialize(value);File.WriteAllText(temp,serialized,new UTF8Encoding(false));
+   string serialized=Json.Serialize(value);File.WriteAllText(temp,serialized,new UTF8Encoding(false));
    if(File.Exists(file)) File.Replace(temp,file,null); else File.Move(temp,file);
   }
   public static string Hash(string file) { using(var sha=SHA256.Create()) using(var stream=File.OpenRead(file)) return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", "").ToLowerInvariant(); }
@@ -71,8 +71,9 @@ namespace UnturnedModManager {
   }
   public static void CheckLinks(string path) {
    for(string p=Path.GetFullPath(path);p!=null;p=Path.GetDirectoryName(p))
-    if((File.Exists(p)||Directory.Exists(p))&&(File.GetAttributes(p)&FileAttributes.ReparsePoint)!=0) throw new Exception(L.Get("Text141")+p);
+    try{if((File.GetAttributes(p)&FileAttributes.ReparsePoint)!=0)throw new Exception(L.Get("Text141")+p);}catch(FileNotFoundException){}catch(DirectoryNotFoundException){}
   }
+  public static void MoveDirectoryChecked(string source,string target){source=Path.GetFullPath(source);target=Path.GetFullPath(target);for(int attempt=0;;attempt++){try{CheckLinks(source);CheckLinks(target);Directory.Move(source,target);return;}catch(IOException ex){int code=ex.HResult&65535;if(attempt>=3||(code!=5&&code!=32&&code!=33))throw;}catch(UnauthorizedAccessException){if(attempt>=3)throw;}Thread.Sleep(80*(attempt+1));}}
   public static void CheckTarget(string target,string kind,string scope=null) {
    var parts=target.Split('/');
    bool module = parts.Length>=3 && parts[0]=="Modules" && parts[1]!="Framework" && parts[1]!="Unturned" && parts[1]!="Rocket.Unturned";
@@ -122,27 +123,15 @@ namespace UnturnedModManager {
     }
    } catch(OperationCanceledException){throw;}catch(Exception ex) { errors.Add(folder+"："+Problems.Explain(ex));if(ScanSession.Current!=null)ScanSession.Current.Problems.Add(new SourceProblem{Folder=folder,SummaryKey="UnreadablePackage",RemedyKey="ReloadSourceHelp",Details=Problems.Explain(ex)}); }
   }
-  public static Package ImportZip(string zip,string cache) {
-   string dest=Path.Combine(cache,"imports",Guid.NewGuid().ToString("N")); Directory.CreateDirectory(dest);
-   long total=0; var names=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-   using(var archive=ZipFile.OpenRead(zip)) {
-    if(archive.Entries.Count>25000) throw new Exception(L.Get("Text152"));
-    foreach(var entry in archive.Entries) {
-     string normalized=entry.FullName.Replace('\\','/');string rel=normalized.TrimEnd('/'); if(rel.Length==0) continue;
-     string target=Paths.Safe(dest,rel);
-     if(!names.Add(rel)) throw new Exception(L.Get("Text153"));
-     total+=entry.Length; if(total>2147483648L) throw new Exception(L.Get("Text154"));
-     if(normalized.EndsWith("/")) Directory.CreateDirectory(target);
-     else { Directory.CreateDirectory(Path.GetDirectoryName(target)); entry.ExtractToFile(target); }
-    }
-   }
-   var errors=new List<string>(); var found=Scan(dest,L.Get("Text155"),errors,4);
-   if(found.Count==0 || found.Select(p=>p.Folder).Distinct(StringComparer.OrdinalIgnoreCase).Count()!=1 || errors.Count!=0) throw new Exception(L.Get("Text156")+string.Join("\n",errors));
-   return found[0];
+  public static Package ImportZip(string zip,string cache,Action<int,string> report=null,CancellationToken cancellation=default(CancellationToken)) {
+   cancellation.ThrowIfCancellationRequested();string token=Guid.NewGuid().ToString("N"),dest=Paths.Safe(cache,"ImportStaging/"+token),published=Paths.Safe(cache,"imports/"+token);Paths.CheckLinks(dest);Directory.CreateDirectory(dest);var names=new HashSet<string>(StringComparer.OrdinalIgnoreCase);long total=0,done=0;
+   using(var archive=ZipFile.OpenRead(zip)){if(archive.Entries.Count>25000)throw new Exception(L.Get("Text152"));long expected=archive.Entries.Sum(e=>e.Length);if(expected>2147483648L)throw new Exception(L.Get("Text154"));var buffer=new byte[65536];foreach(var entry in archive.Entries){cancellation.ThrowIfCancellationRequested();string normalized=entry.FullName.Replace('\\','/'),rel=normalized.TrimEnd('/');if(rel.Length==0)continue;string target=Paths.Safe(dest,rel);if(!names.Add(rel))throw new Exception(L.Get("Text153"));total+=entry.Length;if(total>2147483648L)throw new Exception(L.Get("Text154"));if(normalized.EndsWith("/")){Directory.CreateDirectory(target);continue;}Directory.CreateDirectory(Path.GetDirectoryName(target));using(var source=entry.Open())using(var output=new FileStream(target,FileMode.CreateNew,FileAccess.Write,FileShare.None)){int count;while((count=source.Read(buffer,0,buffer.Length))>0){cancellation.ThrowIfCancellationRequested();output.Write(buffer,0,count);done+=count;if(done>2147483648L)throw new Exception(L.Get("Text154"));if(report!=null)report(expected==0?0:(int)Math.Min(94,done*94/expected),L.Get("ExtractingZip"));}}File.SetLastWriteTimeUtc(target,entry.LastWriteTime.UtcDateTime);}}
+   cancellation.ThrowIfCancellationRequested();var errors=new List<string>();var found=Scan(dest,L.Get("Text155"),errors,4);if(found.Count==0||found.Select(p=>p.Folder).Distinct(StringComparer.OrdinalIgnoreCase).Count()!=1||errors.Count!=0)throw new Exception(L.Get("Text156")+string.Join("\n",errors));string relative=found[0].Folder.Substring(Path.GetFullPath(dest).Length).TrimStart(Path.DirectorySeparatorChar);Paths.CheckLinks(published);Directory.CreateDirectory(Path.GetDirectoryName(published));cancellation.ThrowIfCancellationRequested();Paths.MoveDirectoryChecked(dest,published);var result=Load(relative.Length==0?published:Paths.Safe(published,relative.Replace('\\','/')),L.Get("Text155"));if(report!=null)report(100,L.Get("ImportComplete"));return result;
   }
+
  }
  public partial class Engine {
-  public readonly string Root, State,GameRoot,ScopeId; public readonly bool ServerMode;public Action<int,string> Progress=delegate{}; public bool TestMode; public int FailAfter=-1;
+  public readonly string Root, State,GameRoot,ScopeId; public readonly bool ServerMode;public Action<int,string> Progress=delegate{}; public bool TestMode; public int FailAfter=-1;public int LastWrittenFiles,LastUnchangedFiles;
   string RegistryPath { get { return Path.Combine(State,"installed.json"); } }
   string JournalPath { get { return Path.Combine(State,"pending.json"); } }
   public Engine(string root,string stateBase,bool test=false,bool server=false,string scope=null,IEnumerable<string> workshopRoots=null) {
@@ -200,7 +189,7 @@ namespace UnturnedModManager {
    using(var gate=new FileStream(Path.Combine(State,"operation.lock"),FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None)) {CheckGame();Recover();action();}
   }
   public void Install(Package package,Dictionary<string,string> approved,bool allowDowngrade=false) {
-   Locked(delegate {
+   LastWrittenFiles=LastUnchangedFiles=0;Locked(delegate {
     var verified=Packages.Reload(package);if(!string.Equals(Packages.InstallSignature(package),Packages.InstallSignature(verified),StringComparison.Ordinal))throw new Exception(L.Get("SourceChanged"));package=verified;if(package.Manifest.scopeId!=ScopeId)throw new Exception(L.Get("ScopeInvalid"));WorkshopTargets.VerifySources(package,Root);InstallTarget.Validate(package,ServerMode);var m=package.Manifest;var r=ReadRegistry();var old=r.packages.FirstOrDefault(p=>p.id==m.id);
     if(old!=null && (VersionOrder.Newer(old.version,m.version)||VersionOrder.Compare(old.version,m.version)==null)&&!allowDowngrade) throw new Exception(L.Get("Text168"));
     if(old!=null && old.kind!=m.kind) throw new Exception(L.Get("Text169"));
@@ -208,39 +197,41 @@ namespace UnturnedModManager {
     var oldFiles=old==null?new Dictionary<string,OwnedFile>(StringComparer.OrdinalIgnoreCase):old.files.ToDictionary(f=>f.target,StringComparer.OrdinalIgnoreCase);
     var otherFiles=new HashSet<string>(r.packages.Where(p=>p.id!=m.id).SelectMany(p=>p.files.Select(f=>f.target)),StringComparer.OrdinalIgnoreCase);
     string stage=Path.Combine(State,"staging",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(stage);
-    var next=new InstalledPackage {id=m.id,name=m.name,version=m.version,kind=m.kind,scopeId=ScopeId,files=new List<OwnedFile>()}; int count=0;
+    var changed=new HashSet<string>(StringComparer.OrdinalIgnoreCase);var next=new InstalledPackage {id=m.id,name=m.name,version=m.version,kind=m.kind,scopeId=ScopeId,files=new List<OwnedFile>()}; int count=0;
     foreach(var f in m.files) {
      if(otherFiles.Contains(f.target)) throw new Exception(L.Get("Text170")+f.target);
      string source=Paths.Safe(package.Folder,f.source), staged=Paths.Safe(stage,Data.Key(f.target)+".bin"),target=Target(f.target);
      if(!File.Exists(source)||!Data.Same(Data.Hash(source),f.sha256)) throw new Exception(L.Get("Text171")+f.source);
-     Directory.CreateDirectory(Path.GetDirectoryName(staged));File.Copy(source,staged,true);
-     if(!Data.Same(Data.Hash(staged),f.sha256)) throw new Exception(L.Get("Text172"));
      OwnedFile prior; bool known=oldFiles.TryGetValue(f.target,out prior), exists=File.Exists(target);string hash=exists?Data.Hash(target):null;
      string consent;
      if(!known&&exists&&!Data.Same(hash,f.sha256)&&(approved==null||!approved.TryGetValue(f.target,out consent)||!Data.Same(hash,consent))) throw new Exception(L.Get("Text173")+f.target);
+     if(!exists||!Data.Same(hash,f.sha256)){Directory.CreateDirectory(Path.GetDirectoryName(staged));File.Copy(source,staged,true);if(!Data.Same(Data.Hash(staged),f.sha256))throw new Exception(L.Get("Text172"));changed.Add(f.target);}else LastUnchangedFiles++;
      next.files.Add(new OwnedFile {target=f.target,hash=f.sha256,hadOriginal=known?prior.hadOriginal:exists,originalHash=known?prior.originalHash:hash});
      Progress(++count*30/m.files.Count,L.Get("Text174")+count+" / "+m.files.Count);
     }
-    var expected=next.files.ToDictionary(f=>f.target,f=>f.hash,StringComparer.OrdinalIgnoreCase);foreach(var f in oldFiles.Values)if(!expected.ContainsKey(f.target))expected[f.target]=f.hadOriginal?f.originalHash:null;Begin(next.files.Select(f=>f.target).Concat(oldFiles.Keys),expected);
+    var nextTargets=new HashSet<string>(next.files.Select(f=>f.target),StringComparer.OrdinalIgnoreCase);var expected=next.files.ToDictionary(f=>f.target,f=>f.hash,StringComparer.OrdinalIgnoreCase);foreach(var f in oldFiles.Values)if(!expected.ContainsKey(f.target))expected[f.target]=f.hadOriginal?f.originalHash:null;Begin(changed.Concat(oldFiles.Keys.Where(path=>!nextTargets.Contains(path))),expected);
     try {
      foreach(var f in next.files.Where(f=>f.hadOriginal&&!oldFiles.ContainsKey(f.target))) {string saved=Original(f.target);Directory.CreateDirectory(Path.GetDirectoryName(saved));File.Copy(Target(f.target),saved,true);if(!Data.Same(Data.Hash(saved),f.originalHash))throw new Exception(L.Get("Text175"));}
      count=0;
-     foreach(var f in m.files) {string target=Target(f.target);Directory.CreateDirectory(Path.GetDirectoryName(target));File.Copy(Paths.Safe(stage,Data.Key(f.target)+".bin"),target,true);if(!Data.Same(Data.Hash(target),f.sha256))throw new Exception(L.Get("Text176"));if(FailAfter==count++)throw new Exception(L.Get("Text177"));Progress(30+count*60/m.files.Count,L.Get("Text178")+count+" / "+m.files.Count);}
+     foreach(var f in m.files) {string target=Target(f.target);if(changed.Contains(f.target)){Directory.CreateDirectory(Path.GetDirectoryName(target));File.Copy(Paths.Safe(stage,Data.Key(f.target)+".bin"),target,true);LastWrittenFiles++;if(!Data.Same(Data.Hash(target),f.sha256))throw new Exception(L.Get("Text176"));}if(FailAfter==count++)throw new Exception(L.Get("Text177"));Progress(30+count*60/m.files.Count,L.Get("Text178")+count+" / "+m.files.Count);}
      var names=new HashSet<string>(next.files.Select(f=>f.target),StringComparer.OrdinalIgnoreCase);
      foreach(var stale in oldFiles.Values.Where(f=>!names.Contains(f.target))) Restore(stale);
+     foreach(var f in m.files.Where(f=>!changed.Contains(f.target))){string target=Target(f.target);if(!File.Exists(target)||!Data.Same(Data.Hash(target),f.sha256))throw new Exception(L.Get("Text163")+f.target);}
      r.packages.RemoveAll(p=>p.id==m.id);r.packages.Add(next);Data.Write(RegistryPath,r);File.Delete(JournalPath);
     } catch {Recover();throw;}
-    Progress(100,ModNames.Display(package)+L.Get("Text179"));
+    Progress(100,ModNames.Display(package)+L.Get("Text179")+" · "+string.Format(L.Get("FileOutcome"),LastWrittenFiles,LastUnchangedFiles));
    });
   }
   public Dictionary<string,string> Preflight(Package package){
    if(package.Manifest.scopeId!=ScopeId)throw new Exception(L.Get("ScopeInvalid"));CheckGame();Paths.CheckLinks(Root);if(NeedsRecovery)throw new Exception(L.Get("PendingBlocksInstall"));WorkshopTargets.VerifySources(package,Root);InstallTarget.Validate(package,ServerMode);var registry=ReadRegistry();var old=registry.packages.FirstOrDefault(p=>p.id==package.Manifest.id);if(old!=null&&old.kind!=package.Manifest.kind)throw new Exception(L.Get("Text169"));VerifyOwned(old);var owners=new HashSet<string>(registry.packages.Where(p=>p.id!=package.Manifest.id).SelectMany(p=>p.files.Select(f=>f.target)),StringComparer.OrdinalIgnoreCase);var directories=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
    foreach(var file in package.Manifest.files){if(owners.Contains(file.target))throw new Exception(L.Get("Text170")+file.target);string source=Paths.Safe(package.Folder,file.source);if(!File.Exists(source)||!Data.Same(Data.Hash(source),file.sha256))throw new Exception(L.Get("Text171")+file.source);string target=Target(file.target);if(File.Exists(target)&&(File.GetAttributes(target)&FileAttributes.ReadOnly)!=0)throw new UnauthorizedAccessException(target);string directory=Path.GetDirectoryName(target);while(!Directory.Exists(directory))directory=Path.GetDirectoryName(directory);directories.Add(directory);}
-   foreach(string directory in directories){Paths.CheckLinks(directory);string probe=Path.Combine(directory,".umm-write-check-"+Guid.NewGuid().ToString("N"));try{using(var stream=new FileStream(probe,FileMode.CreateNew,FileAccess.Write,FileShare.None,1,FileOptions.DeleteOnClose))stream.WriteByte(0);}finally{if(File.Exists(probe))File.Delete(probe);}}return Collisions(package);
+   foreach(string directory in directories){Paths.CheckLinks(directory);string probe=Path.Combine(directory,".umm-write-check-"+Guid.NewGuid().ToString("N"));try{using(var stream=new FileStream(probe,FileMode.CreateNew,FileAccess.Write,FileShare.None,1,FileOptions.DeleteOnClose))stream.WriteByte(0);}finally{if(File.Exists(probe))File.Delete(probe);}}return ReadCollisions(package,registry);
   }
   public Dictionary<string,string> Collisions(Package package) {
    if(package.Manifest.scopeId!=ScopeId)throw new Exception(L.Get("ScopeInvalid"));WorkshopTargets.VerifySources(package,Root);InstallTarget.Validate(package,ServerMode);
-   var r=ReadRegistry();var old=r.packages.FirstOrDefault(p=>p.id==package.Manifest.id);var known=new HashSet<string>(old==null?new string[0]:old.files.Select(f=>f.target),StringComparer.OrdinalIgnoreCase);var result=new Dictionary<string,string>();
+   return ReadCollisions(package,ReadRegistry());
+  }
+  Dictionary<string,string> ReadCollisions(Package package,Registry r){var old=r.packages.FirstOrDefault(p=>p.id==package.Manifest.id);var known=new HashSet<string>(old==null?new string[0]:old.files.Select(f=>f.target),StringComparer.OrdinalIgnoreCase);var result=new Dictionary<string,string>();
    foreach(var f in package.Manifest.files) {string target=Target(f.target);if(!known.Contains(f.target)&&File.Exists(target)&&!Data.Same(Data.Hash(target),f.sha256))result.Add(f.target,Data.Hash(target));}return result;
   }
   void Restore(OwnedFile f) {string target=Target(f.target);if(f.hadOriginal){Directory.CreateDirectory(Path.GetDirectoryName(target));File.Copy(Original(f.target),target,true);}else if(File.Exists(target))File.Delete(target);}
@@ -310,7 +301,7 @@ namespace UnturnedModManager {
    foreach(var pair in roots){if(!Directory.Exists(pair.Key))continue;report(0,L.Get("Text226")+pair.Key);r.Roots++;r.Available.AddRange(Packages.Scan(pair.Key,pair.Value,r.Issues,5));}
    foreach(string folder in folders)try{ScanSession.Check();if(session.Visited.Add(Path.GetFullPath(folder)))r.Available.AddRange(ScanCache.Read(folder,L.Get("Text227")));}catch(Exception ex){r.Issues.Add(folder+"："+Problems.Explain(ex));session.Problems.Add(new SourceProblem{Folder=folder,SummaryKey="UnreadablePackage",RemedyKey="ReloadSourceHelp",Details=Problems.Explain(ex)});}
    if(InstallTarget.IsRoot(r.Game,server))try{var e=new Engine(r.Game,store,false,server);r.Installed=e.ReadRegistry().packages;r.WorkshopRoots=WorkshopTargets.ContentRoots(r.Game,libs,r.Workshop);if(!server){var scopes=r.Available.Select(p=>p.Manifest.scopeId).Where(id=>id!=null).ToList();string installs=Path.Combine(store,"Installs");if(Directory.Exists(installs))foreach(string record in Directory.GetDirectories(installs).SelectMany(d=>new[]{"installed.json","pending.json"}.Select(name=>Path.Combine(d,name))).Where(File.Exists)){try{var saved=Data.Read<Registry>(record);if(saved.scopeId!=null&&Data.Same(saved.ownerGameRoot,r.Game))scopes.Add(saved.scopeId);}catch(Exception ex){r.Issues.Add(record+": "+Problems.Explain(ex));}}foreach(string scope in scopes.Distinct())try{var scoped=new Engine(r.Game,store,false,false,scope,r.WorkshopRoots);r.Installed.AddRange(scoped.ReadRegistry().packages);if(scoped.NeedsRecovery){r.PendingScopes.Add(scope);r.Issues.Add(L.Get("Text228")+" Workshop "+scope);}}catch(Exception ex){r.Issues.Add(Problems.Explain(ex));}}if(e.NeedsRecovery)r.Issues.Add(L.Get("Text228"));}catch(Exception ex){r.Issues.Add(L.Get("Text229")+Problems.Explain(ex));}
-   ScanSession.Check();r.Available=r.Available.GroupBy(p=>p.Manifest.id+"|"+p.Folder,StringComparer.OrdinalIgnoreCase).Select(g=>g.First()).ToList();for(int i=0;i<r.Available.Count;i++)r.Available[i].ScanOrder=i;r.SourceProblems=session.Problems;r.ParsedPackages=session.Parsed;r.CacheHits=session.CacheHits;r.VisitedDirectories=session.Visited.Count;r.ElapsedMilliseconds=timer.ElapsedMilliseconds;return r;
+   ScanSession.Check();r.Available=r.Available.GroupBy(p=>p.Manifest.id+"|"+p.Folder,StringComparer.OrdinalIgnoreCase).Select(g=>g.First()).ToList();for(int i=0;i<r.Available.Count;i++)r.Available[i].ScanOrder=i;if(server)foreach(var p in r.Available){string reason;InstallTarget.SupportsServer(p,out reason);p.ServerIssue=reason;}r.SourceProblems=session.Problems;r.ParsedPackages=session.Parsed;r.CacheHits=session.CacheHits;r.VisitedDirectories=session.Visited.Count;r.ElapsedMilliseconds=timer.ElapsedMilliseconds;return r;
    }
   }
  }

@@ -1,6 +1,6 @@
 ﻿# Localization resources
 
-The three UTF-8 JSON dictionaries (`zh-TW`, `en-US`, `zh-CN`) are embedded by `build.ps1` and accessed through `L.Get(key)`. They contain the same 395 non-empty keys. The executable does not need loose JSON files next to it.
+The three UTF-8 JSON dictionaries (`zh-TW`, `en-US`, `zh-CN`) are embedded by `build.ps1` and accessed through `L.Get(key)`. They contain the same 422 non-empty keys. The executable does not need loose JSON files next to it.
 
 - `Text000`–`Text236` are stable keys migrated from the existing application. Keep them stable while other UI work is reviewed.
 - New interaction strings use descriptive keys such as `ReviewUninstall`, `EmptySearch` and `SelectionCount`.
@@ -15,3 +15,5 @@ The three UTF-8 JSON dictionaries (`zh-TW`, `en-US`, `zh-CN`) are embedded by `b
 The light workflow adds group selection, category, archive, Workshop-scope, cancellation and comparison keys. `tools/verify-localization.ps1` checks key parity, placeholders and literal UI references before compilation. Test-only unknown-key fallback probes are excluded from literal-reference checking.
 
 Four theme names, problem-center remedies, batch preflight summaries and metadata diagnostics use the same dictionaries. Module display names belong to the independent author metadata contract in docs/MOD-METADATA-v1.md.
+
+The guide and incremental-workflow update adds readable step resources, import cancellation and truthful written/unchanged file counts. Manager-owned stored diagnostics relocalize known prefixes; technical paths and author-provided content remain unchanged.

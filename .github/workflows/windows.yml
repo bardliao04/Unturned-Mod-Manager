@@ -1,4 +1,4 @@
-name: Windows build and isolated verification
+﻿name: Windows build and isolated verification
 on:
   pull_request:
   workflow_dispatch:
@@ -19,6 +19,8 @@ jobs:
             dist/
             TestResults/results.txt
             TestResults/workflow-*/workflow-results.txt
+            TestResults/responsive-*/responsive-results.txt
+            TestResults/responsive-*/*.png
             TestResults/dashboard-*/dashboard-results.txt
             TestResults/dashboard-*/*.png
             TestResults/ui-*/ui-results.txt
