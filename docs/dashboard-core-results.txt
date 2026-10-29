@@ -1,0 +1,74 @@
+﻿PASS all versions remain selectable and equal-version workshop is recommended without duplicate paths
+PASS remembered older version is retained after scanning
+PASS missing saved version falls back to recommended latest
+PASS downgrade requires explicit confirmation flag
+PASS confirmed version switch installs selected older content and updates registry
+PASS version downgrade retains original uninstall ownership
+PASS removing nested import archives its files and only removes matching source and version preferences
+PASS removing import preserves workshop and other sources
+PASS workshop source removal is rejected
+PASS import-root removal is rejected
+PASS new stable GitHub version triggers update information
+PASS same and older GitHub versions do not prompt
+PASS GitHub prerelease does not trigger stable update prompt
+PASS foreign update download page is rejected
+PASS invalid update response propagates to non-blocking error handler
+PASS existing manager settings remain compatible
+PASS four-part equivalent manager version does not create a false update prompt
+PASS existing files require explicit overwrite approval
+PASS conflict changes no files
+PASS install copies payload
+PASS install records ownership
+PASS uninstall preserves externally modified files
+PASS external content remains intact
+PASS update removes obsolete owned file
+PASS downgrades rejected
+PASS uninstall restores pre-install original
+PASS uninstall removes record
+PASS injected installation failure
+PASS failed installation rolls back all game files
+PASS failed install rolls back registry
+PASS injected uninstall failure
+PASS failed uninstall restores installed state
+PASS different packages cannot own same file
+PASS tampered package rejected
+PASS hash rejection occurs before mutation
+PASS reject unsafe path ../escape
+PASS reject unsafe path /absolute
+PASS reject unsafe path Modules/Test/a.dll:stream
+PASS reject unsafe path Modules/Test/NUL.txt
+PASS reject unsafe path Modules/Test/a. 
+PASS reject unsafe path Modules\Test\x
+PASS reject writes outside Modules
+PASS reject overwriting official module
+PASS ZIP traversal rejected
+PASS ZIP cannot escape destination
+PASS valid ZIP imports
+PASS nested workshop manifest detected
+PASS restart journal recovery
+PASS localization install and uninstall
+PASS manifest path traversal rejected
+PASS empty valid scan reports progress without inventing an error
+PASS missing game workshop and remembered mod produce actionable warnings
+PASS corrupt mod reports reason while retaining valid results
+PASS automatic search preserves selected valid game and reports multiple locations
+PASS registry failure is surfaced without discarding detected mods
+PASS permission errors include a remedy
+PASS locked file errors include a remedy
+PASS disk full errors include a remedy
+PASS long path errors include a remedy
+PASS headless server root is not silently accepted as a player game
+PASS server mode refuses localization before copying files
+PASS server role with included assembly is recognized
+PASS server install writes only to selected server root
+PASS server and game roots have independent installation records
+PASS server package can be updated
+PASS server uninstall removes own files
+PASS client-only module is blocked in server mode
+PASS declared server role without included DLL is blocked
+PASS optional shared module role is recognized
+PASS server auto-discovery uses dedicated server Steam manifest
+PASS player discovery never selects dedicated server installation
+PASS automatic server discovery preserves manually selected mod source
+PASS server instructions do not reuse client launch instructions
+TOTAL: 73 checks passed. Test root: E:\Unturned Mod 開發\ModManager\TestResults\fef07987a913491092d5f0c2a883a1ee

@@ -12,7 +12,7 @@ namespace UnturnedModManager {
    var actions=new FlowLayoutPanel{Dock=DockStyle.Fill,FlowDirection=FlowDirection.RightToLeft};
    bool yesNo=buttons==MessageBoxButtons.YesNo;var reject=Make(L.Get(yesNo?"No":"Text090"),yesNo?DialogResult.No:DialogResult.OK);actions.Controls.Add(reject);form.CancelButton=reject;form.AcceptButton=reject;
    if(yesNo){var confirm=Make(L.Get("Yes"),DialogResult.Yes);confirm.BackColor=Color.FromArgb(37,99,235);confirm.ForeColor=Color.White;actions.Controls.Add(confirm);}
-   layout.Controls.Add(actions,0,1);form.Controls.Add(layout);form.Shown+=delegate{body.SelectionStart=0;body.SelectionLength=0;reject.Focus();};return form;
+   layout.Controls.Add(actions,0,1);form.Controls.Add(layout);Themes.Apply(form);form.Shown+=delegate{body.SelectionStart=0;body.SelectionLength=0;reject.Focus();};return form;
   }
   static Button Make(string text,DialogResult result){var button=new ModernButton{Text=text,DialogResult=result,AutoSize=true,MinimumSize=new Size(100,38),FlatStyle=FlatStyle.Flat,Margin=new Padding(6,10,0,0),BackColor=Color.White,ForeColor=Color.FromArgb(31,41,55)};button.FlatAppearance.BorderColor=Color.FromArgb(226,232,240);return button;}
  }

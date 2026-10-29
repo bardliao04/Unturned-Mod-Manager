@@ -19,5 +19,7 @@ jobs:
             dist/
             TestResults/results.txt
             TestResults/workflow-*/workflow-results.txt
+            TestResults/dashboard-*/dashboard-results.txt
+            TestResults/dashboard-*/*.png
             TestResults/ui-*/ui-results.txt
             TestResults/ui-*/*.png

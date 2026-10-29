@@ -25,7 +25,7 @@ namespace UnturnedModManager {
   public static string RemoveImport(Package p,string store,Settings settings){
    string root=ImportRoot(p,store);var errors=new List<string>();var contents=Packages.Scan(root,L.Get("Text155"),errors,4);
    if(errors.Count>0||contents.Select(x=>x.Folder).Distinct(StringComparer.OrdinalIgnoreCase).Count()!=1||!Data.Same(contents[0].Folder,p.Folder)||!contents.Any(x=>x.Manifest.id==p.Manifest.id))throw new Exception(L.Get("Text233"));
-   string archive=Path.GetFullPath(Path.Combine(store,"RemovedImports",Guid.NewGuid().ToString("N")));Paths.CheckLinks(archive);Directory.CreateDirectory(Path.GetDirectoryName(archive));Directory.Move(root,archive);
+   string archive=Path.GetFullPath(Path.Combine(store,"RemovedImports",Guid.NewGuid().ToString("N")));Paths.CheckLinks(archive);Directory.CreateDirectory(Path.GetDirectoryName(archive));for(int attempt=0;;attempt++){try{Paths.CheckLinks(root);Paths.CheckLinks(archive);Directory.Move(root,archive);break;}catch(IOException ex){int code=ex.HResult&65535;if(attempt>=3||(code!=5&&code!=32&&code!=33))throw;System.Threading.Thread.Sleep(80*(attempt+1));}}
    if(settings.packageFolders!=null)settings.packageFolders.RemoveAll(f=>Under(f,root));
    if(settings.versionChoices!=null)foreach(string key in settings.versionChoices.Where(k=>Under(k.Value,root)).Select(k=>k.Key).ToArray())settings.versionChoices.Remove(key);
    return archive;
