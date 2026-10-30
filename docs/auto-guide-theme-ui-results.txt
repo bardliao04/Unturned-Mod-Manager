@@ -1,0 +1,182 @@
+PASS zh-TW: scan groups versions and retains distinct mod IDs
+PASS zh-TW: ownership conflict is visible before installation
+PASS zh-TW: search and bulk select affect the visible mod
+PASS zh-TW: hidden checks are cleared before batch actions
+PASS zh-TW: empty search guidance is visible
+PASS zh-TW: installed filter
+PASS zh-TW: update filter
+PASS zh-TW: sorting retains checked mod identity
+PASS zh-TW: batch actions require a valid selection
+PASS zh-TW: live language updates navigation and columns
+PASS zh-TW: version recommendation relocalizes
+PASS en-US: live language updates navigation and columns
+PASS en-US: version recommendation relocalizes
+PASS zh-CN: live language updates navigation and columns
+PASS zh-CN: version recommendation relocalizes
+PASS zh-TW: actual install workflow updates registry and preserves search
+PASS zh-TW: install refreshes records without rescanning sources
+PASS zh-TW: actual uninstall workflow restores files and preserves search
+PASS zh-TW: category assignment participates in in-memory search
+PASS zh-TW: category rename updates assignments without moving files
+PASS zh-TW: removing a category preserves source files
+PASS zh-TW: collapsed version view realizes one row per mod
+PASS zh-TW: expansion adds only the chosen mod versions
+PASS zh-TW: parent selection checks all children and rejects ambiguous batch install
+PASS zh-TW: partial version selection is reflected by the parent checkbox
+PASS zh-TW: checked version action installs the intended version
+PASS zh-TW: version switching uses cached source catalog and refreshes installation state
+PASS zh-TW: expanded mod identity is persisted
+PASS zh-TW: editing a target disables operations until a rescan
+PASS zh-TW: batch archive moves imported files to a recoverable container
+PASS zh-TW: archiving preserves the independent original source
+PASS zh-TW: batch archive refuses unmanaged sources
+PASS zh-TW: activity history has a bounded memory footprint
+PASS zh-TW: activity severity and search use the virtualized log view
+PASS zh-TW: cancel button signals the current scan
+PASS zh-TW: settings migration preserves a prior settings snapshot
+PASS zh-TW: header language selector stays within bounds
+PASS zh-TW: compact layout reserves space for usable mod rows
+PASS zh-TW: search tools have a reserved visible layout region
+PASS zh-TW: header language selector stays within bounds
+PASS zh-TW: compact layout reserves space for usable mod rows
+PASS zh-TW: search tools have a reserved visible layout region
+PASS zh-TW: header language selector stays within bounds
+PASS zh-TW: compact layout reserves space for usable mod rows
+PASS zh-TW: search tools have a reserved visible layout region
+PASS zh-TW: header language selector stays within bounds
+PASS zh-TW: compact layout reserves space for usable mod rows
+PASS zh-TW: search tools have a reserved visible layout region
+PASS zh-TW: header language selector stays within bounds
+PASS zh-TW: compact layout reserves space for usable mod rows
+PASS zh-TW: search tools have a reserved visible layout region
+PASS zh-TW: scaled layout at 1.25
+PASS zh-TW: scaled layout at 1.5
+PASS zh-TW: scaled layout at 1.75
+PASS zh-TW: scaled layout at 2
+PASS zh-TW: confirmation defaults to cancel
+PASS zh-CN: language saved without rescanning or changing mods
+PASS zh-TW: resource coverage, restart persistence, localized install/update/uninstall and errors
+PASS en-US: scan groups versions and retains distinct mod IDs
+PASS en-US: ownership conflict is visible before installation
+PASS en-US: search and bulk select affect the visible mod
+PASS en-US: hidden checks are cleared before batch actions
+PASS en-US: empty search guidance is visible
+PASS en-US: installed filter
+PASS en-US: update filter
+PASS en-US: sorting retains checked mod identity
+PASS en-US: batch actions require a valid selection
+PASS zh-TW: live language updates navigation and columns
+PASS zh-TW: version recommendation relocalizes
+PASS en-US: live language updates navigation and columns
+PASS en-US: version recommendation relocalizes
+PASS zh-CN: live language updates navigation and columns
+PASS zh-CN: version recommendation relocalizes
+PASS en-US: actual install workflow updates registry and preserves search
+PASS en-US: install refreshes records without rescanning sources
+PASS en-US: actual uninstall workflow restores files and preserves search
+PASS en-US: category assignment participates in in-memory search
+PASS en-US: category rename updates assignments without moving files
+PASS en-US: removing a category preserves source files
+PASS en-US: collapsed version view realizes one row per mod
+PASS en-US: expansion adds only the chosen mod versions
+PASS en-US: parent selection checks all children and rejects ambiguous batch install
+PASS en-US: partial version selection is reflected by the parent checkbox
+PASS en-US: checked version action installs the intended version
+PASS en-US: version switching uses cached source catalog and refreshes installation state
+PASS en-US: expanded mod identity is persisted
+PASS en-US: editing a target disables operations until a rescan
+PASS en-US: batch archive moves imported files to a recoverable container
+PASS en-US: archiving preserves the independent original source
+PASS en-US: batch archive refuses unmanaged sources
+PASS en-US: activity history has a bounded memory footprint
+PASS en-US: activity severity and search use the virtualized log view
+PASS en-US: cancel button signals the current scan
+PASS en-US: settings migration preserves a prior settings snapshot
+PASS en-US: header language selector stays within bounds
+PASS en-US: compact layout reserves space for usable mod rows
+PASS en-US: search tools have a reserved visible layout region
+PASS en-US: header language selector stays within bounds
+PASS en-US: compact layout reserves space for usable mod rows
+PASS en-US: search tools have a reserved visible layout region
+PASS en-US: header language selector stays within bounds
+PASS en-US: compact layout reserves space for usable mod rows
+PASS en-US: search tools have a reserved visible layout region
+PASS en-US: header language selector stays within bounds
+PASS en-US: compact layout reserves space for usable mod rows
+PASS en-US: search tools have a reserved visible layout region
+PASS en-US: header language selector stays within bounds
+PASS en-US: compact layout reserves space for usable mod rows
+PASS en-US: search tools have a reserved visible layout region
+PASS en-US: scaled layout at 1.25
+PASS en-US: scaled layout at 1.5
+PASS en-US: scaled layout at 1.75
+PASS en-US: scaled layout at 2
+PASS en-US: confirmation defaults to cancel
+PASS zh-CN: language saved without rescanning or changing mods
+PASS en-US: resource coverage, restart persistence, localized install/update/uninstall and errors
+PASS zh-CN: scan groups versions and retains distinct mod IDs
+PASS zh-CN: ownership conflict is visible before installation
+PASS zh-CN: search and bulk select affect the visible mod
+PASS zh-CN: hidden checks are cleared before batch actions
+PASS zh-CN: empty search guidance is visible
+PASS zh-CN: installed filter
+PASS zh-CN: update filter
+PASS zh-CN: sorting retains checked mod identity
+PASS zh-CN: batch actions require a valid selection
+PASS zh-TW: live language updates navigation and columns
+PASS zh-TW: version recommendation relocalizes
+PASS en-US: live language updates navigation and columns
+PASS en-US: version recommendation relocalizes
+PASS zh-CN: live language updates navigation and columns
+PASS zh-CN: version recommendation relocalizes
+PASS zh-CN: actual install workflow updates registry and preserves search
+PASS zh-CN: install refreshes records without rescanning sources
+PASS zh-CN: actual uninstall workflow restores files and preserves search
+PASS zh-CN: category assignment participates in in-memory search
+PASS zh-CN: category rename updates assignments without moving files
+PASS zh-CN: removing a category preserves source files
+PASS zh-CN: collapsed version view realizes one row per mod
+PASS zh-CN: expansion adds only the chosen mod versions
+PASS zh-CN: parent selection checks all children and rejects ambiguous batch install
+PASS zh-CN: partial version selection is reflected by the parent checkbox
+PASS zh-CN: checked version action installs the intended version
+PASS zh-CN: version switching uses cached source catalog and refreshes installation state
+PASS zh-CN: expanded mod identity is persisted
+PASS zh-CN: editing a target disables operations until a rescan
+PASS zh-CN: batch archive moves imported files to a recoverable container
+PASS zh-CN: archiving preserves the independent original source
+PASS zh-CN: batch archive refuses unmanaged sources
+PASS zh-CN: activity history has a bounded memory footprint
+PASS zh-CN: activity severity and search use the virtualized log view
+PASS zh-CN: cancel button signals the current scan
+PASS zh-CN: settings migration preserves a prior settings snapshot
+PASS zh-CN: header language selector stays within bounds
+PASS zh-CN: compact layout reserves space for usable mod rows
+PASS zh-CN: search tools have a reserved visible layout region
+PASS zh-CN: header language selector stays within bounds
+PASS zh-CN: compact layout reserves space for usable mod rows
+PASS zh-CN: search tools have a reserved visible layout region
+PASS zh-CN: header language selector stays within bounds
+PASS zh-CN: compact layout reserves space for usable mod rows
+PASS zh-CN: search tools have a reserved visible layout region
+PASS zh-CN: header language selector stays within bounds
+PASS zh-CN: compact layout reserves space for usable mod rows
+PASS zh-CN: search tools have a reserved visible layout region
+PASS zh-CN: header language selector stays within bounds
+PASS zh-CN: compact layout reserves space for usable mod rows
+PASS zh-CN: search tools have a reserved visible layout region
+PASS zh-CN: scaled layout at 1.25
+PASS zh-CN: scaled layout at 1.5
+PASS zh-CN: scaled layout at 1.75
+PASS zh-CN: scaled layout at 2
+PASS zh-CN: confirmation defaults to cancel
+PASS zh-CN: language saved without rescanning or changing mods
+PASS zh-CN: resource coverage, restart persistence, localized install/update/uninstall and errors
+PASS zh-TW: large library renders 120 same-name mod identities and 720 versions
+PASS zh-TW: same-name mods show distinguishing IDs
+PASS zh-TW: large library searches by ID without disk scanning
+PASS zh-TW: large version view creates only collapsed parent rows
+PASS zh-TW: expanding 720 versions never rescans the disk
+PASS zh-TW: repeated expansion realizes only one chosen group
+BENCHMARK UI search=18ms expand-all=20ms; mods=120; versions=720
+PASS invalid culture and unknown key fallbacks

@@ -1,0 +1,109 @@
+PASS metadata display in zh-TW
+PASS all-language search in zh-TW
+PASS metadata display in en-US
+PASS all-language search in en-US
+PASS metadata display in zh-CN
+PASS all-language search in zh-CN
+PASS localized display leaves identity and targets unchanged
+PASS missing English falls back to Traditional Chinese
+PASS missing fallback uses original author name
+PASS empty original falls back to stable ID
+PASS mismatched metadata is ignored with a diagnostic
+PASS duplicate metadata IDs rejected
+PASS control characters in metadata rejected
+PASS malformed metadata does not hide a valid package
+PASS metadata is cached with package parsing
+PASS metadata edits invalidate scan cache
+PASS preflight isolates a corrupt source from an independent package
+PASS preflight never installs payload files
+PASS overlapping batch destinations block both packages
+PASS preflight and actual installation retain stable identity
+PASS source version changes after confirmation cannot install a different plan
+PASS write permission probes leave no files behind
+PASS new journal refuses to overwrite post-crash manual changes
+PASS matching snapshot remains safely recoverable
+PASS actual California package matches both display metadata identities
+PASS actual scope name follows zh-TW: 3707778928
+PASS actual scope name follows en-US: 3707778928
+PASS actual scope name follows zh-CN: 3707778928
+PASS actual scope name follows zh-TW: 3711646503
+PASS actual scope name follows en-US: 3711646503
+PASS actual scope name follows zh-CN: 3711646503
+PASS zh-TW: theme switch preserves checks and scan count 0
+PASS zh-TW: theme applies to input, detail and list 0
+PASS zh-TW: language changes preserve chosen and saved theme 0/zh-TW
+PASS zh-TW: theme-language combination preserves catalog 0/zh-TW
+PASS zh-TW: result dialog uses theme and language 0/zh-TW
+PASS en-US: language changes preserve chosen and saved theme 0/en-US
+PASS en-US: theme-language combination preserves catalog 0/en-US
+PASS en-US: result dialog uses theme and language 0/en-US
+PASS zh-CN: language changes preserve chosen and saved theme 0/zh-CN
+PASS zh-CN: theme-language combination preserves catalog 0/zh-CN
+PASS zh-CN: result dialog uses theme and language 0/zh-CN
+PASS zh-TW: returning to Traditional Chinese preserves theme 0
+PASS zh-TW: theme switch preserves checks and scan count 1
+PASS zh-TW: theme applies to input, detail and list 1
+PASS zh-TW: language changes preserve chosen and saved theme 1/zh-TW
+PASS zh-TW: theme-language combination preserves catalog 1/zh-TW
+PASS zh-TW: result dialog uses theme and language 1/zh-TW
+PASS en-US: language changes preserve chosen and saved theme 1/en-US
+PASS en-US: theme-language combination preserves catalog 1/en-US
+PASS en-US: result dialog uses theme and language 1/en-US
+PASS zh-CN: language changes preserve chosen and saved theme 1/zh-CN
+PASS zh-CN: theme-language combination preserves catalog 1/zh-CN
+PASS zh-CN: result dialog uses theme and language 1/zh-CN
+PASS zh-TW: returning to Traditional Chinese preserves theme 1
+PASS zh-TW: theme switch preserves checks and scan count 2
+PASS zh-TW: theme applies to input, detail and list 2
+PASS zh-TW: language changes preserve chosen and saved theme 2/zh-TW
+PASS zh-TW: theme-language combination preserves catalog 2/zh-TW
+PASS zh-TW: result dialog uses theme and language 2/zh-TW
+PASS en-US: language changes preserve chosen and saved theme 2/en-US
+PASS en-US: theme-language combination preserves catalog 2/en-US
+PASS en-US: result dialog uses theme and language 2/en-US
+PASS zh-CN: language changes preserve chosen and saved theme 2/zh-CN
+PASS zh-CN: theme-language combination preserves catalog 2/zh-CN
+PASS zh-CN: result dialog uses theme and language 2/zh-CN
+PASS zh-TW: returning to Traditional Chinese preserves theme 2
+PASS zh-TW: theme switch preserves checks and scan count 3
+PASS zh-TW: theme applies to input, detail and list 3
+PASS zh-TW: language changes preserve chosen and saved theme 3/zh-TW
+PASS zh-TW: theme-language combination preserves catalog 3/zh-TW
+PASS zh-TW: result dialog uses theme and language 3/zh-TW
+PASS en-US: language changes preserve chosen and saved theme 3/en-US
+PASS en-US: theme-language combination preserves catalog 3/en-US
+PASS en-US: result dialog uses theme and language 3/en-US
+PASS zh-CN: language changes preserve chosen and saved theme 3/zh-CN
+PASS zh-CN: theme-language combination preserves catalog 3/zh-CN
+PASS zh-CN: result dialog uses theme and language 3/zh-CN
+PASS zh-TW: returning to Traditional Chinese preserves theme 3
+PASS zh-TW: live mod name follows UI language zh-TW
+PASS zh-TW: name language switch retains checks without scanning zh-TW
+PASS zh-TW: library renders translated name zh-TW
+PASS en-US: live mod name follows UI language en-US
+PASS en-US: name language switch retains checks without scanning en-US
+PASS en-US: library renders translated name en-US
+PASS zh-CN: live mod name follows UI language zh-CN
+PASS zh-CN: name language switch retains checks without scanning zh-CN
+PASS zh-CN: library renders translated name zh-CN
+PASS zh-CN: other-language name remains searchable
+PASS zh-CN: activity resolves a stored module ID at display time
+PASS zh-CN: collapsed navigation keeps tooltips and persistent state
+PASS zh-CN: problem center retains real source diagnostics
+PASS zh-CN: actual batch installs safe item and reports corrupt item as skipped
+PASS zh-CN: batch failures link to module identity in problem center
+PASS zh-CN: batch-installed module restores safely
+PASS zh-CN: dashboard controls fit {Width=1920, Height=1080}
+PASS zh-CN: workspace and detail actions stay inside the viewport {Width=1920, Height=1080}
+PASS zh-CN: version command rows reserve room for scrolling {Width=1920, Height=1080}
+PASS zh-CN: details do not auto-select text {Width=1920, Height=1080}
+PASS zh-CN: dashboard controls fit {Width=1600, Height=900}
+PASS zh-CN: workspace and detail actions stay inside the viewport {Width=1600, Height=900}
+PASS zh-CN: version command rows reserve room for scrolling {Width=1600, Height=900}
+PASS zh-CN: details do not auto-select text {Width=1600, Height=900}
+PASS zh-CN: dashboard controls fit {Width=1366, Height=768}
+PASS zh-CN: workspace and detail actions stay inside the viewport {Width=1366, Height=768}
+PASS zh-CN: version command rows reserve room for scrolling {Width=1366, Height=768}
+PASS zh-CN: details do not auto-select text {Width=1366, Height=768}
+PASS zh-CN: theme changes tolerate a catalog whose grid is still being populated
+PASS theme preference survives restart

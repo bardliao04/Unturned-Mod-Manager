@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "mods": [
+    {
+      "modId": "unturned.ai.tchinese.california2.workshop.3707778928",
+      "workshopId": "3707778928",
+      "type": "map_translation",
+      "targetMap": { "name": "California 2", "workshopId": "3707778928" },
+      "displayNames": {
+        "zh-TW": "California 2 繁體中文翻譯",
+        "zh-CN": "California 2 繁体中文翻译",
+        "en-US": "California 2 Traditional Chinese Translation"
+      }
+    },
+    {
+      "modId": "unturned.ai.tchinese.california2.workshop.3711646503",
+      "workshopId": "3711646503",
+      "type": "localization",
+      "targetMap": { "name": "California 2", "workshopId": "3707778928" },
+      "displayNames": {
+        "zh-TW": "California 2 獨立資源繁體中文翻譯",
+        "zh-CN": "California 2 独立资源繁体中文翻译",
+        "en-US": "California 2 Standalone Assets — Traditional Chinese Translation"
+      }
+    }
+  ]
+}

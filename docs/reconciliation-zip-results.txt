@@ -1,0 +1,2 @@
+PASS actual California 2 ZIP imports both scopes without repackaging
+PASS all 3043 imported payload files match the original manifest hashes

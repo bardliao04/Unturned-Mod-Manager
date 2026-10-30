@@ -1,0 +1,24 @@
+PASS numeric and prerelease versions compare predictably
+PASS date versions compare and unknown formats remain explicitly incomparable
+PASS scoped policy cannot be promoted to executable-module writes
+PASS target paths with a trailing separator retain the correct Steam library
+PASS incomparable installed version requires explicit switch confirmation
+PASS unknown version set has no invented latest recommendation
+PASS same-version distinct source copies are preserved and identical paths deduplicated
+PASS version comparison detects different payload hashes without merging source copies
+PASS 720 versions and 120 IDs retain separate identities despite identical names
+PASS warm scan reuses all metadata and duplicate remembered root is visited once
+PASS changed manifest invalidates one cached package
+PASS scan cancellation propagates before changing installed files
+PASS scan cache is bounded
+PASS safe archive retains recoverable original package content
+PASS external and Workshop-like source roots cannot be archived as manager imports
+PASS legacy map package expands into independent scope identities
+PASS scan aggregates per-scope installation records
+PASS installed scopes remain discoverable when package source disappears
+PASS first scoped install interruption is discoverable even without source or installed record
+PASS orphaned first-install journal safely restores the scoped target
+PASS one ZIP package can contain multiple independently installable scopes
+PASS multi-scope import is archived as one complete recoverable container
+PASS official split package keeps the original core translation identity
+BENCHMARK cold=176ms warm=73ms; packages=720; cold parses=720; warm parses=0; warm hits=720; visited=841
