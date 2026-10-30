@@ -1,0 +1,27 @@
+Unturned 模組管理器 — 原始碼資料夾
+
+後續程式修改統一使用這個資料夾：
+E:\Unturned Mod 開發\ModManager-原始碼
+
+常用位置：
+src                 程式碼與介面
+src\Resources       繁中、英文、簡中語言檔
+docs                模組安裝包及三語名稱規格
+tools               開發與檢查工具
+README.md           專案與操作說明
+build.ps1           建置程式（PowerShell 執行 .\build.ps1）
+make-package.ps1    產生相容的模組安裝包
+dist                建置完成的 EXE 與設定檔
+TestResults         本機測試結果（執行測試後產生）
+
+建置方式：在本資料夾開啟 PowerShell，執行 .\build.ps1。
+完整測試：執行 .\build.ps1 -Test。
+Windows 需要 .NET Framework 4.8；建置使用 Windows 隨附的 C# 編譯器。
+
+執行時請保留 EXE 與同名 .exe.config；發布給玩家可另外壓縮，
+不需要從發布 ZIP 或暫存解壓縮目錄修改程式。
+
+原本 E:\Unturned Mod 開發\ModManager 保留為先前工作副本。
+兩個資料夾不會自動同步；後續請以本資料夾為準。
+本資料夾包含 Git 歷史，連接同一個 GitHub 專案。
+安裝紀錄、遊戲模組與玩家備份不會搬進原始碼資料夾。
