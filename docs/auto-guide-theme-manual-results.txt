@@ -1,0 +1,77 @@
+PASS 64-bit pointer-valued non-key messages do not overflow or toggle selection
+PASS negative wheel data does not pass through a checked IntPtr-to-int conversion
+PASS real Space key still toggles once after native message validation
+PASS same-version manual installation is detected without changing records
+PASS exact manually copied payload is preserved without creating manager data
+PASS newer manual version is preserved without downgrading
+PASS module modifications never offer translation-record continuation
+PASS stale localization ownership requests a reviewed handover rather than bypassing preflight
+PASS review distinguishes verified files, extra old scope and differing restore points
+PASS review changes neither records nor game files
+PASS unrecognized current translation blocks continuation
+PASS corrupt assistant backup blocks continuation
+PASS record changes after review block commit
+PASS unfinished assistant transaction blocks continuation
+PASS wrong assistant product is rejected
+PASS running assistant prevents concurrent continuation
+PASS unfinished manager transaction blocks continuation
+PASS a different target root is rejected
+PASS current files are reverified at commit after confirmation
+PASS failed continuation leaves the manager registry unchanged
+PASS legacy diagnostics use current language and avoid attributing an unverified cause
+PASS continuation updates active version and preserves extra old records separately
+PASS continuation writes no game content or timestamps
+PASS old manager backups and exact record snapshot are retained
+PASS assistant records and backups remain unchanged
+PASS adopted restore points use separate verified backup references
+PASS repeated review detects an already aligned installation
+PASS already aligned continuation is idempotent
+PASS later normal installation preserves imported restore references
+PASS failed update after continuation triggers rollback
+PASS rollback preserves continued registry and separate restore references
+PASS uninstall restores the explicitly adopted assistant backups
+PASS uninstall of continued scope leaves extra old scope untouched
+PASS zh-TW: detached bottom commands have no stale scroll viewport clipping region
+PASS zh-TW: Windows confirms the bottom command window has no clipping region
+PASS zh-TW: a physical click checks only one module
+PASS zh-TW: second physical click unchecks that module once
+PASS zh-TW: individual mouse clicks support multiple independent selections
+PASS zh-TW: Space toggles only the focused module checkbox
+PASS zh-TW: physical group checkbox selects its own versions
+PASS zh-TW: physical child checkbox preserves partial group state
+PASS zh-TW: bottom actions stay visible without a selection
+PASS zh-TW: collapsed navigation keeps usable click targets
+PASS zh-TW: progress bar spans the available window width
+PASS zh-TW: UI fixture starts with stale manager records like an assistant update
+PASS zh-TW: manual reconciliation button is removed
+PASS zh-TW: same-version manual install is skipped without touching files or records
+PASS zh-TW: declining handover leaves stale records unchanged and does not install
+PASS zh-TW: unverified installed content is rejected without changing files or records
+PASS zh-TW: older manual installation updates after verified backup handover and preflight
+PASS zh-TW: newly retained records appear immediately without a rescan
+PASS zh-TW: retained scope warning derives from persistent records
+PASS zh-TW: persistent actions and long progress bar fit {Width=1366, Height=768}
+PASS zh-TW: all bottom commands fit without horizontal scrolling {Width=1366, Height=768}
+PASS zh-TW: bottom commands remain unclipped after resize {Width=1366, Height=768}
+PASS zh-TW: all navigation commands fit vertically {Width=1366, Height=768}
+PASS zh-TW: persistent actions and long progress bar fit {Width=1000, Height=680}
+PASS zh-TW: all bottom commands fit without horizontal scrolling {Width=1000, Height=680}
+PASS zh-TW: bottom commands remain unclipped after resize {Width=1000, Height=680}
+PASS zh-TW: all navigation commands fit vertically {Width=1000, Height=680}
+PASS zh-TW: all commands fit in zh-TW collapsed=False {Width=1000, Height=680}
+PASS zh-TW: all commands fit in zh-TW collapsed=False {Width=1366, Height=768}
+PASS zh-TW: all commands fit in zh-TW collapsed=True {Width=1000, Height=680}
+PASS zh-TW: all commands fit in zh-TW collapsed=True {Width=1366, Height=768}
+PASS zh-TW: individual check remains usable after switching to zh-TW
+PASS en-US: all commands fit in en-US collapsed=False {Width=1000, Height=680}
+PASS en-US: all commands fit in en-US collapsed=False {Width=1366, Height=768}
+PASS en-US: all commands fit in en-US collapsed=True {Width=1000, Height=680}
+PASS en-US: all commands fit in en-US collapsed=True {Width=1366, Height=768}
+PASS en-US: individual check remains usable after switching to en-US
+PASS zh-CN: all commands fit in zh-CN collapsed=False {Width=1000, Height=680}
+PASS zh-CN: all commands fit in zh-CN collapsed=False {Width=1366, Height=768}
+PASS zh-CN: all commands fit in zh-CN collapsed=True {Width=1000, Height=680}
+PASS zh-CN: all commands fit in zh-CN collapsed=True {Width=1366, Height=768}
+PASS zh-CN: individual check remains usable after switching to zh-CN
+PASS zh-CN: a managed update takes precedence over the stale original assistant record
+PASS zh-CN: updated manual install restores original assistant backup and preserves unrelated edits
