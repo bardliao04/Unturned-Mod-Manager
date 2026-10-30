@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -19,7 +19,7 @@ namespace UnturnedModManager {
  }
  public class Package { public string ServerIssue;public ModMetadata Metadata;public string MetadataIssue;public string Folder; public PackageManifest Manifest; public string Origin;public DateTime ModifiedUtc,ImportedUtc;public int ScanOrder; }
  public class OwnedFile {public string backupReference; public string target; public string hash; public bool hadOriginal; public string originalHash; }
- public class InstalledPackage {public bool retained; public string id; public string name; public string version; public string kind; public string scopeId;public List<OwnedFile> files; }
+ public class InstalledPackage {public bool retired;public bool retained; public string id; public string name; public string version; public string kind; public string scopeId;public List<OwnedFile> files; }
  public class Registry { public string ownerGameRoot;public string scopeId;public string gameRoot; public List<InstalledPackage> packages = new List<InstalledPackage>(); }
  public class Snapshot {public string expectedHash;public bool expectedAbsent; public string target; public bool existed; public string hash; public string saved; }
  public class Journal {public int schemaVersion;public string gameRoot,ownerGameRoot,scopeId; public string priorRegistry; public bool hadRegistry; public List<Snapshot> files; }
@@ -154,6 +154,7 @@ namespace UnturnedModManager {
   void CheckGame() {
    if(!TestMode && (Process.GetProcessesByName("Unturned").Length>0 || Process.GetProcessesByName("Unturned_Headless").Length>0)) throw new Exception(L.Get("Text162"));
   }
+  void VerifyOriginalBackups(InstalledPackage p){if(p==null)return;foreach(var f in p.files)if(f.hadOriginal&&(!File.Exists(Original(f))||!Data.Same(Data.Hash(Original(f)),f.originalHash)))throw new Exception(L.Get("Text164")+f.target);}
   void VerifyOwned(InstalledPackage p) {
    if(p==null) return;
    foreach(var f in p.files) {
@@ -162,14 +163,14 @@ namespace UnturnedModManager {
     if(f.hadOriginal&&(!File.Exists(Original(f))||!Data.Same(Data.Hash(Original(f)),f.originalHash))) throw new Exception(L.Get("Text164")+f.target);
    }
   }
-  void Begin(IEnumerable<string> files,Dictionary<string,string> expected) {
+  void Begin(IEnumerable<string> files,Dictionary<string,string> expected,bool retainSnapshot=false) {
    string token=Guid.NewGuid().ToString("N"); var j=new Journal {schemaVersion=2,gameRoot=Root,ownerGameRoot=GameRoot,scopeId=ScopeId,hadRegistry=File.Exists(RegistryPath),priorRegistry=File.Exists(RegistryPath)?File.ReadAllText(RegistryPath):null,files=new List<Snapshot>()};
    int i=0;
    foreach(string rel in files.Distinct(StringComparer.OrdinalIgnoreCase)) {
     string target=Target(rel), saved="transactions/"+token+"/"+(i++)+".bak"; bool exists=File.Exists(target);
     if(exists) {string path=Paths.Safe(State,saved);Directory.CreateDirectory(Path.GetDirectoryName(path));File.Copy(target,path);}
     j.files.Add(new Snapshot {target=rel,expectedHash=expected[rel],expectedAbsent=expected[rel]==null,existed=exists,hash=exists?Data.Hash(Paths.Safe(State,saved)):null,saved=saved});
-   } Data.Write(JournalPath,j);
+   }if(retainSnapshot)Data.Write(Paths.Safe(State,"transactions/"+token+"/snapshot.json"),j); Data.Write(JournalPath,j);
   }
   void Recover() {
    if(!File.Exists(JournalPath)) return;
@@ -188,44 +189,46 @@ namespace UnturnedModManager {
    Directory.CreateDirectory(State);
    using(var gate=new FileStream(Path.Combine(State,"operation.lock"),FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None)) {CheckGame();Recover();action();}
   }
-  public void Install(Package package,Dictionary<string,string> approved,bool allowDowngrade=false) {
+  void CopyVerified(string source,string destination,string expected,byte[] buffer){using(var hash=SHA256.Create())using(var input=File.OpenRead(source))using(var output=new FileStream(destination,FileMode.Create,FileAccess.Write,FileShare.None)){int n;while((n=input.Read(buffer,0,buffer.Length))>0){hash.TransformBlock(buffer,0,n,buffer,0);output.Write(buffer,0,n);}hash.TransformFinalBlock(new byte[0],0,0);if(!Data.Same(BitConverter.ToString(hash.Hash).Replace("-","").ToLowerInvariant(),expected))throw new Exception(L.Get("Text171")+source);}}
+  public void Install(Package package,Dictionary<string,string> approved,bool allowDowngrade=false,bool overwrite=false) {
    LastWrittenFiles=LastUnchangedFiles=0;Locked(delegate {
     var verified=Packages.Reload(package);if(!string.Equals(Packages.InstallSignature(package),Packages.InstallSignature(verified),StringComparison.Ordinal))throw new Exception(L.Get("SourceChanged"));package=verified;if(package.Manifest.scopeId!=ScopeId)throw new Exception(L.Get("ScopeInvalid"));WorkshopTargets.VerifySources(package,Root);InstallTarget.Validate(package,ServerMode);var m=package.Manifest;var r=ReadRegistry();var old=r.packages.FirstOrDefault(p=>p.id==m.id);
     if(old!=null && (VersionOrder.Newer(old.version,m.version)||VersionOrder.Compare(old.version,m.version)==null)&&!allowDowngrade) throw new Exception(L.Get("Text168"));
     if(old!=null && old.kind!=m.kind) throw new Exception(L.Get("Text169"));
-    VerifyOwned(old);
+    if(overwrite)VerifyOriginalBackups(old);else VerifyOwned(old);
     var oldFiles=old==null?new Dictionary<string,OwnedFile>(StringComparer.OrdinalIgnoreCase):old.files.ToDictionary(f=>f.target,StringComparer.OrdinalIgnoreCase);
+    if(overwrite){var returning=new HashSet<string>(m.files.Select(f=>f.target),StringComparer.OrdinalIgnoreCase);foreach(var retired in r.packages.Where(p=>p.retired&&p.id.StartsWith(m.id+".retired.",StringComparison.Ordinal)).ToList()){VerifyOriginalBackups(retired);foreach(var f in retired.files.Where(f=>returning.Contains(f.target)).ToList()){oldFiles[f.target]=f;retired.files.Remove(f);}if(retired.files.Count==0)r.packages.Remove(retired);}}
     var otherFiles=new HashSet<string>(r.packages.Where(p=>p.id!=m.id).SelectMany(p=>p.files.Select(f=>f.target)),StringComparer.OrdinalIgnoreCase);
     string stage=Path.Combine(State,"staging",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(stage);
-    var changed=new HashSet<string>(StringComparer.OrdinalIgnoreCase);var next=new InstalledPackage {id=m.id,name=m.name,version=m.version,kind=m.kind,scopeId=ScopeId,files=new List<OwnedFile>()}; int count=0;
+    var copyBuffer=new byte[65536];var changed=new HashSet<string>(StringComparer.OrdinalIgnoreCase);var next=new InstalledPackage {id=m.id,name=m.name,version=m.version,kind=m.kind,scopeId=ScopeId,files=new List<OwnedFile>()}; int count=0;
     foreach(var f in m.files) {
      if(otherFiles.Contains(f.target)) throw new Exception(L.Get("Text170")+f.target);
      string source=Paths.Safe(package.Folder,f.source), staged=Paths.Safe(stage,Data.Key(f.target)+".bin"),target=Target(f.target);
-     if(!File.Exists(source)||!Data.Same(Data.Hash(source),f.sha256)) throw new Exception(L.Get("Text171")+f.source);
-     OwnedFile prior; bool known=oldFiles.TryGetValue(f.target,out prior), exists=File.Exists(target);string hash=exists?Data.Hash(target):null;
+     if(!File.Exists(source)) throw new Exception(L.Get("Text171")+f.source);
+     OwnedFile prior; bool known=oldFiles.TryGetValue(f.target,out prior), exists=File.Exists(target);string hash=exists&&(!overwrite||!known)?Data.Hash(target):null;
      string consent;
-     if(!known&&exists&&!Data.Same(hash,f.sha256)&&(approved==null||!approved.TryGetValue(f.target,out consent)||!Data.Same(hash,consent))) throw new Exception(L.Get("Text173")+f.target);
-     if(!exists||!Data.Same(hash,f.sha256)){Directory.CreateDirectory(Path.GetDirectoryName(staged));File.Copy(source,staged,true);if(!Data.Same(Data.Hash(staged),f.sha256))throw new Exception(L.Get("Text172"));changed.Add(f.target);}else LastUnchangedFiles++;
+     if(!overwrite&&!known&&exists&&!Data.Same(hash,f.sha256)&&(approved==null||!approved.TryGetValue(f.target,out consent)||!Data.Same(hash,consent))) throw new Exception(L.Get("Text173")+f.target);
+     if(overwrite||!exists||!Data.Same(hash,f.sha256)){Directory.CreateDirectory(Path.GetDirectoryName(staged));CopyVerified(source,staged,f.sha256,copyBuffer);changed.Add(f.target);}else{if(!Data.Same(Data.Hash(source),f.sha256))throw new Exception(L.Get("Text171")+f.source);LastUnchangedFiles++;}
      next.files.Add(new OwnedFile {target=f.target,hash=f.sha256,hadOriginal=known?prior.hadOriginal:exists,originalHash=known?prior.originalHash:hash,backupReference=known?prior.backupReference:null});
      Progress(++count*30/m.files.Count,L.Get("Text174")+count+" / "+m.files.Count);
     }
-    var nextTargets=new HashSet<string>(next.files.Select(f=>f.target),StringComparer.OrdinalIgnoreCase);var expected=next.files.ToDictionary(f=>f.target,f=>f.hash,StringComparer.OrdinalIgnoreCase);foreach(var f in oldFiles.Values)if(!expected.ContainsKey(f.target))expected[f.target]=f.hadOriginal?f.originalHash:null;Begin(changed.Concat(oldFiles.Keys.Where(path=>!nextTargets.Contains(path))),expected);
+    var nextTargets=new HashSet<string>(next.files.Select(f=>f.target),StringComparer.OrdinalIgnoreCase);var expected=next.files.ToDictionary(f=>f.target,f=>f.hash,StringComparer.OrdinalIgnoreCase);foreach(var f in oldFiles.Values)if(!expected.ContainsKey(f.target))expected[f.target]=overwrite?null:f.hadOriginal?f.originalHash:null;Begin(changed.Concat(oldFiles.Keys.Where(path=>!nextTargets.Contains(path))),expected,overwrite);
     try {
      foreach(var f in next.files.Where(f=>f.hadOriginal&&!oldFiles.ContainsKey(f.target))) {string saved=Original(f);Directory.CreateDirectory(Path.GetDirectoryName(saved));File.Copy(Target(f.target),saved,true);if(!Data.Same(Data.Hash(saved),f.originalHash))throw new Exception(L.Get("Text175"));}
      count=0;
      foreach(var f in m.files) {string target=Target(f.target);if(changed.Contains(f.target)){Directory.CreateDirectory(Path.GetDirectoryName(target));File.Copy(Paths.Safe(stage,Data.Key(f.target)+".bin"),target,true);LastWrittenFiles++;if(!Data.Same(Data.Hash(target),f.sha256))throw new Exception(L.Get("Text176"));}if(FailAfter==count++)throw new Exception(L.Get("Text177"));Progress(30+count*60/m.files.Count,L.Get("Text178")+count+" / "+m.files.Count);}
      var names=new HashSet<string>(next.files.Select(f=>f.target),StringComparer.OrdinalIgnoreCase);
-     foreach(var stale in oldFiles.Values.Where(f=>!names.Contains(f.target))) Restore(stale);
+     foreach(var stale in oldFiles.Values.Where(f=>!names.Contains(f.target))){if(overwrite){string path=Target(stale.target);if(File.Exists(path))File.Delete(path);}else Restore(stale);}
      foreach(var f in m.files.Where(f=>!changed.Contains(f.target))){string target=Target(f.target);if(!File.Exists(target)||!Data.Same(Data.Hash(target),f.sha256))throw new InstalledContentChangedException(f.target);}
-     r.packages.RemoveAll(p=>p.id==m.id);r.packages.Add(next);Data.Write(RegistryPath,r);File.Delete(JournalPath);
+     if(overwrite){var removed=oldFiles.Values.Where(f=>!nextTargets.Contains(f.target)&&f.hadOriginal).ToList();if(removed.Count>0)r.packages.Add(new InstalledPackage{id=m.id+".retired."+Guid.NewGuid().ToString("N").Substring(0,8),name=L.Get("RetiredFiles"),version=m.version,kind=m.kind,scopeId=ScopeId,retained=true,retired=true,files=removed.Select(f=>new OwnedFile{target=f.target,hash=f.originalHash,hadOriginal=true,originalHash=f.originalHash,backupReference=f.backupReference}).ToList()});}r.packages.RemoveAll(p=>p.id==m.id);r.packages.Add(next);Data.Write(RegistryPath,r);File.Delete(JournalPath);
     } catch {Recover();throw;}
     Progress(100,ModNames.Display(package)+L.Get("Text179")+" · "+string.Format(L.Get("FileOutcome"),LastWrittenFiles,LastUnchangedFiles));
    });
   }
-  public Dictionary<string,string> Preflight(Package package){
-   if(package.Manifest.scopeId!=ScopeId)throw new Exception(L.Get("ScopeInvalid"));CheckGame();Paths.CheckLinks(Root);if(NeedsRecovery)throw new Exception(L.Get("PendingBlocksInstall"));WorkshopTargets.VerifySources(package,Root);InstallTarget.Validate(package,ServerMode);var registry=ReadRegistry();var old=registry.packages.FirstOrDefault(p=>p.id==package.Manifest.id);if(old!=null&&old.kind!=package.Manifest.kind)throw new Exception(L.Get("Text169"));VerifyOwned(old);var owners=new HashSet<string>(registry.packages.Where(p=>p.id!=package.Manifest.id).SelectMany(p=>p.files.Select(f=>f.target)),StringComparer.OrdinalIgnoreCase);var directories=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+  public Dictionary<string,string> Preflight(Package package,bool overwrite=false){
+   if(package.Manifest.scopeId!=ScopeId)throw new Exception(L.Get("ScopeInvalid"));CheckGame();Paths.CheckLinks(Root);if(NeedsRecovery)throw new Exception(L.Get("PendingBlocksInstall"));WorkshopTargets.VerifySources(package,Root);InstallTarget.Validate(package,ServerMode);var registry=ReadRegistry();var old=registry.packages.FirstOrDefault(p=>p.id==package.Manifest.id);if(old!=null&&old.kind!=package.Manifest.kind)throw new Exception(L.Get("Text169"));if(overwrite)VerifyOriginalBackups(old);else VerifyOwned(old);var owners=new HashSet<string>(registry.packages.Where(p=>p.id!=package.Manifest.id&&!(overwrite&&p.retired&&p.id.StartsWith(package.Manifest.id+".retired.",StringComparison.Ordinal))).SelectMany(p=>p.files.Select(f=>f.target)),StringComparer.OrdinalIgnoreCase);var directories=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
    foreach(var file in package.Manifest.files){if(owners.Contains(file.target))throw new Exception(L.Get("Text170")+file.target);string source=Paths.Safe(package.Folder,file.source);if(!File.Exists(source)||!Data.Same(Data.Hash(source),file.sha256))throw new Exception(L.Get("Text171")+file.source);string target=Target(file.target);if(File.Exists(target)&&(File.GetAttributes(target)&FileAttributes.ReadOnly)!=0)throw new UnauthorizedAccessException(target);string directory=Path.GetDirectoryName(target);while(!Directory.Exists(directory))directory=Path.GetDirectoryName(directory);directories.Add(directory);}
-   foreach(string directory in directories){Paths.CheckLinks(directory);string probe=Path.Combine(directory,".umm-write-check-"+Guid.NewGuid().ToString("N"));try{using(var stream=new FileStream(probe,FileMode.CreateNew,FileAccess.Write,FileShare.None,1,FileOptions.DeleteOnClose))stream.WriteByte(0);}finally{if(File.Exists(probe))File.Delete(probe);}}return ReadCollisions(package,registry);
+   foreach(string directory in new[]{Root}){Paths.CheckLinks(directory);string probe=Path.Combine(directory,".umm-write-check-"+Guid.NewGuid().ToString("N"));try{using(var stream=new FileStream(probe,FileMode.CreateNew,FileAccess.Write,FileShare.None,1,FileOptions.DeleteOnClose))stream.WriteByte(0);}finally{if(File.Exists(probe))File.Delete(probe);}}return overwrite?new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase):ReadCollisions(package,registry);
   }
   public Dictionary<string,string> Collisions(Package package) {
    if(package.Manifest.scopeId!=ScopeId)throw new Exception(L.Get("ScopeInvalid"));WorkshopTargets.VerifySources(package,Root);InstallTarget.Validate(package,ServerMode);
