@@ -29,7 +29,7 @@ PASS zh-CN: Alt+Down opens the themed selector menu
 PASS zh-CN: late progress cannot overwrite a completed or cancelled result
 PASS zh-CN: UI heartbeat continues during forty thousand progress events
 PASS zh-CN: progress pumping stays bounded under load
-BENCHMARK UI heartbeat pulses=21 maxGap=47ms; progress received=40002 delivered=7
+BENCHMARK UI heartbeat pulses=21 maxGap=46ms; progress received=40002 delivered=7
 PASS zh-CN: ZIP import updates the catalog without rescanning Workshop
 PASS zh-CN: incremental import preserves the independent original source
 PASS zh-CN: archive removes only the affected catalog source without rescanning

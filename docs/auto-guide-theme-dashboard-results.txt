@@ -105,4 +105,5 @@ PASS zh-CN: dashboard controls fit {Width=1366, Height=768}
 PASS zh-CN: workspace and detail actions stay inside the viewport {Width=1366, Height=768}
 PASS zh-CN: version command rows reserve room for scrolling {Width=1366, Height=768}
 PASS zh-CN: details do not auto-select text {Width=1366, Height=768}
+PASS zh-CN: theme changes tolerate a catalog whose grid is still being populated
 PASS theme preference survives restart

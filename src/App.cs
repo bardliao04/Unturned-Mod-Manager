@@ -89,8 +89,8 @@ namespace UnturnedModManager {
     populating=true;rows.Clear();grid.Rows.Clear();
     foreach(var group in available.GroupBy(p=>p.Manifest.id).OrderBy(g=>g.First().Manifest.name)) {var options=PackageVersions.Options(group);string saved;settings.versionChoices.TryGetValue(group.Key,out saved);var p=PackageVersions.Choose(options,saved).Package;string reason="";if(serverMode)reason=p.ServerIssue??"";rows.Add(new Row{Package=p,Installed=installed.FirstOrDefault(x=>x.id==p.Manifest.id),ServerIssue=reason,Options=options});}
     foreach(var p in installed.Where(p=>!rows.Any(r=>r.Package!=null&&r.Package.Manifest.id==p.id)))rows.Add(new Row{Installed=p});
-    await DetectManualRows();
     foreach(var row in rows){var p=row.Package;int index=grid.Rows.Add(false,p==null?row.Installed.name:p.Manifest.name,null,"",p==null?L.Get("Text068"):L.Text(p.Origin));var cell=(DataGridViewComboBoxCell)grid.Rows[index].Cells[2];if(p!=null){cell.DisplayMember="Label";cell.ValueMember="Key";cell.DataSource=row.Options;cell.Value=p.Folder;}else{cell.Items.Add("—");cell.Value="—";cell.ReadOnly=true;}RefreshRow(index);}
+    await DetectManualRows();
     scannedGame=game.Text.Trim();scannedSource=workshop.Text.Trim();scannedServer=serverMode;targetConfirmed=InstallTarget.IsRoot(game.Text,serverMode);RefreshTargets();DetectConflicts(installed);populating=false;SortRows();RefreshVersions();ApplyFilter();
     int count=rows.Count(r=>r.Package!=null&&string.IsNullOrEmpty(r.ServerIssue));sourceProblems=result.SourceProblems;scanIssues=result.Issues;RefreshProblems();string summary=operation+L.Get("Text069")+count+L.Get("Text070")+installed.Count+L.Get("Text071");
     string extra=count==0?L.Get("Text072"):"";

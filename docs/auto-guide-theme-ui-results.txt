@@ -178,5 +178,5 @@ PASS zh-TW: large library searches by ID without disk scanning
 PASS zh-TW: large version view creates only collapsed parent rows
 PASS zh-TW: expanding 720 versions never rescans the disk
 PASS zh-TW: repeated expansion realizes only one chosen group
-BENCHMARK UI search=17ms expand-all=22ms; mods=120; versions=720
+BENCHMARK UI search=18ms expand-all=20ms; mods=120; versions=720
 PASS invalid culture and unknown key fallbacks
