@@ -1,4 +1,4 @@
-# Unturned 模組管理器 v1.0.2
+# Unturned 模組管理器 v1.1
 
 安裝、更新與移除相容的 Unturned 漢化及 mod，支援玩家遊戲與本機可存取的 Windows 專用伺服器。
 
@@ -8,7 +8,7 @@
 
 [下載最新正式版](https://github.com/bardliao04/Unturned-Mod-Manager/releases/latest)
 
-在 Assets 下載 **Unturned-Mod-Manager_v1.0.2.zip**，完整解壓縮後開啟 **Unturned模組管理器.exe**。保留同名 .exe.config 與使用說明。GitHub 的 Source code 下載不包含管理器程式。
+在 Assets 下載 **Unturned-Mod-Manager_v1.1.zip**，完整解壓縮後開啟 **Unturned模組管理器.exe**。保留同名 .exe.config 與使用說明。GitHub 的 Source code 下載不包含管理器程式。
 
 1. 選擇玩家遊戲或 Unturned 伺服器，確認目標資料夾。
 2. 等待 Steam 下載完成，按重新掃描；使用分享安裝包時，選擇匯入 ZIP。
@@ -17,9 +17,9 @@
 
 訂閱是下載來源；Steam 更新後仍須重新掃描並安裝，才會更新遊戲中的檔案。
 
-## v1.0.2 更新
+## v1.1 更新
 
-- 來源、已安裝及版本清單統一顯示作者的公開版本；內部建置編號仍用於更新排序與降版判斷。
+- 工作坊、管理器與分享 ZIP 統一採兩段式公開版號，例如 v1.1、v1.3；內部建置編號仍用於更新排序與降版判斷。
 - 已安裝紀錄保留公開版本，即使來源暫時消失仍可辨識。
 - 支援現有 Data 漢化包與含 unturned-manager.json 的模組，不需重複的管理器專用資源。
 - 安裝成功或失敗後清理本次寫入暫存；保留原始還原備份。
