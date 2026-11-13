@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
@@ -7,7 +7,15 @@ namespace UnturnedModManager {
  public class VersionOption {public string Key {get;set;} public string Label {get;set;} public Package Package;}
  public static class PackageVersions {
   static int Priority(Package p){return L.Key(p.Origin)=="Text224"?0:L.Key(p.Origin)=="Text155"?1:2;}
-  public static string Display(Package p){return string.IsNullOrWhiteSpace(p.Manifest.displayVersion)||p.Manifest.displayVersion==p.Manifest.version?p.Manifest.version:p.Manifest.displayVersion+" ("+p.Manifest.version+")";}
+  public static string PublicVersion(string version,string display=null){
+   if(!string.IsNullOrWhiteSpace(display))return display;
+   Version numeric;if(Version.TryParse(version,out numeric)&&numeric.Revision==0)return numeric.Build==0?numeric.ToString(2):numeric.ToString(3);
+   return version;
+  }
+  public static string Display(Package p){return PublicVersion(p.Manifest.version,p.Manifest.displayVersion);}
+  public static string DisplayInstalled(InstalledPackage p,Package source=null){
+   return !string.IsNullOrWhiteSpace(p.displayVersion)?p.displayVersion:source!=null&&Data.Same(source.Manifest.version,p.version)?Display(source):PublicVersion(p.version);
+  }
   public static List<VersionOption> Options(IEnumerable<Package> packages){
    var list=packages.GroupBy(p=>Path.GetFullPath(p.Folder),StringComparer.OrdinalIgnoreCase).Select(g=>g.OrderBy(Priority).First()).ToList();bool reliable=list.All(p=>VersionOrder.Comparable(p.Manifest.version));list=VersionOrder.Sort(list,reliable).ToList();if(reliable)list=list.OrderByDescending(p=>p.Manifest.version,Comparer<string>.Create((a,b)=>VersionOrder.Compare(a,b)??0)).ThenBy(Priority).ThenBy(p=>p.Folder,StringComparer.OrdinalIgnoreCase).ToList();
    var counts=list.GroupBy(p=>p.Manifest.version).ToDictionary(g=>g.Key,g=>g.Count());var copies=list.GroupBy(p=>p.Manifest.version+"|"+p.Origin).ToDictionary(g=>g.Key,g=>g.Count());

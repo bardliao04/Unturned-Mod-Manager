@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
@@ -27,7 +27,19 @@ namespace UnturnedModManager {
    search.Text="測試工具";AssertExperience(grid.Rows.Cast<DataGridViewRow>().Count(r=>r.Visible)==1,"other-language name remains searchable",results);activityEntries.Add(new ActivityEntry{Time=DateTime.Now,Kind="Info",Module=RowId(localized),Operation="test",Message="fixture"});AssertExperience(ActivityModule(activityEntries.Last())==RawName(localized),"activity resolves a stored module ID at display time",results);
    settings.navigationCollapsed=true;UpdateNavigation();SaveSettings();AssertExperience(dashboardShell.ColumnStyles[0].Width==88&&navButtons.All(b=>hints.GetToolTip(b).Length>0),"collapsed navigation keeps tooltips and persistent state",results);settings.navigationCollapsed=false;UpdateNavigation();
    sourceProblems.Add(new SourceProblem{Folder=rows.Single(r=>RowId(r)=="test.bad").Package.Folder,SummaryKey="UnreadablePackage",RemedyKey="ReloadSourceHelp",Details="fixture unreadable data"});RefreshProblems();AssertExperience(visibleProblems.Any(p=>p.SummaryKey=="UnreadablePackage"),"problem center retains real source diagnostics",results);tabs.SelectedTab=problemPage;PerformLayout();Application.DoEvents();using(var picture=new Bitmap(ClientSize.Width,ClientSize.Height)){Controls[0].DrawToBitmap(picture,new Rectangle(Point.Empty,ClientSize));picture.Save(Path.Combine(output,"problem-center.png"));}
-   tabs.SelectedIndex=0;search.Clear();CheckVisible(false);foreach(DataGridViewRow line in grid.Rows)if(RowId(rows[line.Index])=="test.localized"||RowId(rows[line.Index])=="test.bad")line.Cells[0].Value=true;await ExecuteFixtureOperation(()=>Install());AssertExperience(localized.Installed!=null&&rows.Single(r=>RowId(r)=="test.bad").Installed==null&&batchSuccess==1&&batchSkipped==1,"actual batch installs safe item and reports corrupt item as skipped",results);AssertExperience(visibleProblems.Any(p=>p.ModId=="test.bad"),"batch failures link to module identity in problem center",results);search.Text="測試工具";CheckVisible(true);await ExecuteFixtureOperation(()=>Uninstall());AssertExperience(localized.Installed==null,"batch-installed module restores safely",results);
+   tabs.SelectedIndex=0;search.Clear();CheckVisible(false);foreach(DataGridViewRow line in grid.Rows)if(RowId(rows[line.Index])=="test.localized"||RowId(rows[line.Index])=="test.bad")line.Cells[0].Value=true;await ExecuteFixtureOperation(()=>Install());AssertExperience(localized.Installed!=null&&rows.Single(r=>RowId(r)=="test.bad").Installed==null&&batchSuccess==1&&batchFailed==1&&batchSkipped==0,"actual batch installs the safe item and reports the corrupt item from staging",results);AssertExperience(visibleProblems.Any(p=>p.ModId=="test.bad"),"batch failures link to module identity in problem center",results);var formerlyBad=rows.Single(r=>RowId(r)=="test.bad");
+   var repairedSource=formerlyBad.Package;
+   File.WriteAllText(Paths.Safe(repairedSource.Folder,repairedSource.Manifest.files[0].source),"fixture test.bad");
+   new Engine(game.Text,store,true).Install(repairedSource,null,false,true);
+   await RefreshInstalledState();
+   CheckVisible(false);
+   var removeRows=rows.Where(r=>r==localized||r==formerlyBad).ToArray();
+   var modified=removeRows[0];var independent=removeRows[1];
+   string manualFile=Paths.Safe(game.Text,modified.Installed.files[0].target);
+   File.WriteAllText(manualFile,"player edit");
+   foreach(var row in removeRows)grid.Rows[rows.IndexOf(row)].Cells[0].Value=true;
+   await ExecuteFixtureOperation(()=>Uninstall());
+   AssertExperience(modified.Installed!=null&&File.ReadAllText(manualFile)=="player edit"&&independent.Installed==null&&batchSuccess==1&&batchFailed==1,"batch removal keeps a player edit and continues to the next independent module",results);
    foreach(Size size in new[]{new Size(1920,1080),new Size(1600,900),new Size(1366,768)}){ClientSize=size;PerformLayout();LayoutDetail();Application.DoEvents();AssertExperience(themeChoice.Right<=themeChoice.Parent.Width&&languageChoice.Right<=languageChoice.Parent.Width&&navButtons.All(b=>b.Right<=navigation.Width),"dashboard controls fit "+size,results);AssertExperience(tabs.Bottom<=dashboardShell.Height&&(!detailSplit.Panel2Collapsed?historyCurrent.Bottom<=historyCurrent.Parent.ClientSize.Height:true),"workspace and detail actions stay inside the viewport "+size,results);tabs.SelectedIndex=1;PerformLayout();Application.DoEvents();AssertExperience(installVersions.Bottom<=installVersions.Parent.ClientSize.Height&&forgetVersions.Bottom<=forgetVersions.Parent.ClientSize.Height,"version command rows reserve room for scrolling "+size,results);tabs.SelectedIndex=0;AssertExperience(detail.SelectionLength==0,"details do not auto-select text "+size,results);}
    populating=true;rows.Add(new Row{Installed=new InstalledPackage{id="test.partial-layout",name="fixture",version="1.0.0"}});try{ChangeTheme(2);AssertExperience(Themes.Current.Id==Themes.All[2].Id,"theme changes tolerate a catalog whose grid is still being populated",results);}finally{rows.RemoveAt(rows.Count-1);populating=false;}
    ChangeTheme(3);SaveSettings();

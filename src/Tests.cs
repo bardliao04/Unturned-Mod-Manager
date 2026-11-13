@@ -41,13 +41,30 @@ namespace UnturnedModManager {
    string store=Path.Combine(root,"cache"),guid=Guid.NewGuid().ToString("N"),folder=Path.Combine(store,"imports",guid,"nested");var package=Create(folder,"1.0.7",files);var settings=new Settings{packageFolders=new List<string>{folder,latest.Folder},versionChoices=new Dictionary<string,string>{{package.Manifest.id,folder},{"other",latest.Folder}}};
    string archived=PackageVersions.RemoveImport(package,store,settings);Assert(!Directory.Exists(folder)&&File.Exists(Path.Combine(archived,"nested",Packages.ManifestName))&&settings.packageFolders.SequenceEqual(new[]{latest.Folder})&&!settings.versionChoices.ContainsKey(package.Manifest.id)&&settings.versionChoices.ContainsKey("other"),"removing nested import archives its files and only removes matching source and version preferences");
    Assert(File.Exists(Paths.Safe(latest.Folder,"payload/Modules/VersionTest/a.dll")),"removing import preserves workshop and other sources");Reject(()=>PackageVersions.RemoveImport(latest,store,settings),"workshop source removal is rejected");Reject(()=>PackageVersions.ImportRoot(new Package{Folder=Path.Combine(store,"imports")},store),"import-root removal is rejected");
-   string json="{\"tag_name\":\"v1.0.2\",\"html_url\":\"https://github.com/bardliao04/Unturned-Mod-Manager/releases/tag/v1.0.2\",\"draft\":false,\"prerelease\":false}";
-   Assert(ManagerUpdates.Parse(json)!=null,"new stable GitHub version triggers update information");Assert(ManagerUpdates.Parse(json.Replace("1.0.2","1.0.1"))==null&&ManagerUpdates.Parse(json.Replace("1.0.2","1.0"))==null,"same and older GitHub versions do not prompt");Assert(ManagerUpdates.Parse(json.Replace("\"prerelease\":false","\"prerelease\":true"))==null,"GitHub prerelease does not trigger stable update prompt");Reject(()=>ManagerUpdates.Parse(json.Replace("https://github.com/","https://example.com/")),"foreign update download page is rejected");Reject(()=>ManagerUpdates.Parse("invalid JSON"),"invalid update response propagates to non-blocking error handler");
+   string json="{\"tag_name\":\"v1.4\",\"html_url\":\"https://github.com/bardliao04/Unturned-Mod-Manager/releases/tag/v1.4\",\"draft\":false,\"prerelease\":false}";
+   Assert(ManagerUpdates.Parse(json)!=null,"new stable GitHub version triggers update information");Assert(ManagerUpdates.Parse(json.Replace("1.4","1.3"))==null&&ManagerUpdates.Parse(json.Replace("1.4","1.0"))==null,"same and older GitHub versions do not prompt");Assert(ManagerUpdates.Parse(json.Replace("\"prerelease\":false","\"prerelease\":true"))==null,"GitHub prerelease does not trigger stable update prompt");Reject(()=>ManagerUpdates.Parse(json.Replace("https://github.com/","https://example.com/")),"foreign update download page is rejected");Reject(()=>ManagerUpdates.Parse("invalid JSON"),"invalid update response propagates to non-blocking error handler");
    var legacy=Data.Parse<Settings>("{\"gameRoot\":\"old\",\"packageFolders\":[]}");Assert(legacy.gameRoot=="old"&&legacy.versionChoices==null,"existing manager settings remain compatible");
-   Assert(ManagerUpdates.Parse(json.Replace("1.0.2","1.0.1.0"))==null,"four-part equivalent manager version does not create a false update prompt");
+   Assert(ManagerUpdates.Parse(json.Replace("1.4","1.3.0.0"))==null,"four-part equivalent manager version does not create a false update prompt");
+  }
+  static void VersionDisplayTests(string baseDir){
+   string root=Path.Combine(baseDir,"public-version-"+Guid.NewGuid().ToString("N")),game=Path.Combine(root,"game");
+   Put(game,"Unturned.exe","fixture");var p=Create(Path.Combine(root,"package"),"2026.10.31.2",new Dictionary<string,string>{{"Modules/Version/a.dll","fixture"}});
+   p.Manifest.displayVersion="1.3";Data.Write(Path.Combine(p.Folder,Packages.ManifestName),p.Manifest);p=Packages.Load(p.Folder,"fixture");
+   Assert(PackageVersions.Display(p)=="1.3","public package version does not append an internal build date");
+   Assert(VersionOrder.Newer(p.Manifest.version,"2026.10.29.1"),"public display does not change upgrade ordering");
+   var engine=new Engine(game,Path.Combine(root,"state"),true);engine.Install(p,null);
+   var installed=engine.ReadRegistry().packages.Single();
+   Assert(installed.version=="2026.10.31.2"&&installed.displayVersion=="1.3"&&PackageVersions.DisplayInstalled(installed)=="1.3","installed record preserves public version even without a source");
+   var older=Data.Parse<InstalledPackage>("{\"version\":\"2026.10.31.2\"}");
+   Assert(PackageVersions.DisplayInstalled(older,p)=="1.3","older records resolve public version from the matching source");
+   Assert(PackageVersions.PublicVersion("1.2.2.0")=="1.2.2","assembly-style trailing zero displays the matching public version");
+   Assert(PackageVersions.PublicVersion("1.3.0.0")=="1.3","two-part release displays without assembly padding");
+   Assert(VersionOrder.Newer("1.1","1.0.10")&&VersionOrder.Newer("1.3","1.2.2"),"two-part releases upgrade previous three-part versions");
+   engine.Uninstall(p.Manifest.id);
   }
   public static int Run(string baseDir){
-   VersionManagementTests(baseDir);
+   Directory.CreateDirectory(baseDir);CompactPackages.Test(baseDir);
+   VersionManagementTests(baseDir);VersionDisplayTests(baseDir);
    string scratch=Path.Combine(Path.GetFullPath(baseDir),Guid.NewGuid().ToString("N"));Directory.CreateDirectory(scratch);string game=Path.Combine(scratch,"game"),state=Path.Combine(scratch,"state");Put(game,"Unturned.exe","fake game");
    string a="Modules/Test/a.dll",b="Modules/Test/b.module";var p=Create(Path.Combine(scratch,"v1"),"1.0.0",new Dictionary<string,string>{{a,"new a"},{b,"new b"}});var e=new Engine(game,state,true);
    Put(game,a,"original");Reject(delegate{e.Install(p,null);},"existing files require explicit overwrite approval");Assert(File.ReadAllText(Paths.Safe(game,a))=="original","conflict changes no files");
@@ -103,6 +120,7 @@ namespace UnturnedModManager {
    var playerFound=Scanner.Collect(scanHome,scanStore,"",scanRoot,new string[0],new[]{serverLib},true,report);Assert(!playerFound.FoundGame,"player discovery never selects dedicated server installation");
    string discoveredWorkshop=Path.Combine(serverLib,"steamapps/workshop/content/304930");Directory.CreateDirectory(discoveredWorkshop);var preservedSource=Scanner.Collect(scanHome,scanStore,"",scanRoot,new string[0],new[]{serverLib},true,report,true);Assert(Data.Same(preservedSource.Workshop,Path.GetFullPath(scanRoot)),"automatic server discovery preserves manually selected mod source");
    Assert(!InstallTarget.Instructions(optional,true).Contains("BattlEye")&&InstallTarget.Instructions(optional,true).Contains("重新啟動"),"server instructions do not reuse client launch instructions");
+   Assert(!Directory.GetFiles(state,"*.bin",SearchOption.AllDirectories).Any(),"successful and failed installs release staging payloads");
    lines.Add("TOTAL: "+passed+" checks passed. Test root: "+scratch);File.WriteAllLines(Path.Combine(baseDir,"results.txt"),lines,Encoding.UTF8);Console.WriteLine(lines.Last());return 0;
   }
  }

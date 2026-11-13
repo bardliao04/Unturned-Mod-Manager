@@ -1,32 +1,104 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Threading;
 using System.Windows.Forms;
 namespace UnturnedModManager {
  public sealed class InstallPreflight {public Package Package;public Engine Engine;public string Error;public bool NeedsRecordReview;public Dictionary<string,string> Collisions;public bool Safe{get{return Error==null;}}}
  public static class BatchPlanner {
-  public static List<InstallPreflight> Build(IEnumerable<Package> packages,Func<Package,Engine> engine,bool overwrite=false){var plan=new List<InstallPreflight>();foreach(var package in packages){var item=new InstallPreflight{Package=package};try{item.Engine=engine(package);item.Package=Packages.Reload(package);item.Collisions=item.Engine.Preflight(item.Package,overwrite);}catch(Exception ex){item.Error=Problems.Explain(ex);item.NeedsRecordReview=ex is InstalledContentChangedException&&item.Package.Manifest.kind=="localization"&&item.Package.Manifest.packageIdentity!=null;}plan.Add(item);}
-   var destinations=new Dictionary<string,List<InstallPreflight>>(StringComparer.OrdinalIgnoreCase);foreach(var item in plan.Where(p=>p.Engine!=null))foreach(var file in item.Package.Manifest.files){string key=Path.GetFullPath(Path.Combine(item.Engine.Root,file.target));List<InstallPreflight> owners;if(!destinations.TryGetValue(key,out owners)){owners=new List<InstallPreflight>();destinations[key]=owners;}if(!owners.Contains(item))owners.Add(item);}foreach(var owners in destinations.Values.Where(o=>o.Count>1))foreach(var item in owners){item.Error=L.Get("BatchOverlap");item.NeedsRecordReview=false;}return plan;
+  public static List<InstallPreflight> Build(IEnumerable<Package> packages,Func<Package,Engine> engine,bool overwrite=false,CancellationToken cancellation=default(CancellationToken),Action<int,string> report=null){
+   using(var session=new PreflightSession(cancellation)){
+    cancellation.ThrowIfCancellationRequested();var sources=packages.ToArray();var plan=new List<InstallPreflight>();
+    for(int i=0;i<sources.Length;i++){
+     cancellation.ThrowIfCancellationRequested();var package=sources[i];int index=i;
+     string title=string.Format(L.Get("PreflightPackage"),i+1,sources.Length,ModNames.Display(package));
+     if(report!=null)report(i*100/Math.Max(1,sources.Length),title);
+     var item=new InstallPreflight{Package=package};
+     try{
+      item.Engine=engine(package);
+      if(overwrite){
+       // Compare against the selected manifest when the installer reloads it under the lock.
+       item.Engine.CheckInstallReady(package);
+      }else{
+       item.Engine.Progress=(value,message)=>{cancellation.ThrowIfCancellationRequested();if(report!=null)report((index*100+Math.Min(100,value))/Math.Max(1,sources.Length),title+" · "+message);};
+       item.Package=Packages.Reload(package);
+       item.Collisions=item.Engine.Preflight(item.Package);
+      }
+     }catch(OperationCanceledException){throw;}catch(Exception ex){item.Error=Problems.Explain(ex);item.NeedsRecordReview=ex is InstalledContentChangedException&&item.Package.Manifest.kind=="localization"&&item.Package.Manifest.packageIdentity!=null;}
+     plan.Add(item);
+    }
+    var destinations=new Dictionary<string,InstallPreflight>(StringComparer.OrdinalIgnoreCase);
+    foreach(var item in plan.Where(p=>p.Engine!=null))foreach(var file in item.Package.Manifest.files){
+     cancellation.ThrowIfCancellationRequested();string key=Path.GetFullPath(Path.Combine(item.Engine.Root,file.target));InstallPreflight owner;
+     if(destinations.TryGetValue(key,out owner)&&owner!=item){owner.Error=item.Error=L.Get("BatchOverlap");owner.NeedsRecordReview=item.NeedsRecordReview=false;}else destinations[key]=item;
+    }
+    cancellation.ThrowIfCancellationRequested();if(report!=null)report(100,L.Get("PreflightReady"));return plan;
+   }
   }
- }
- public partial class MainForm {
-  async Task InstallBatch(){if(busy)return;try{if(!CatalogMatchesTarget())throw new Exception(L.Get("PathsNeedScan"));var chosen=Selected();if(chosen.Count==0)throw new Exception(L.Get("Text114"));var sourceRows=chosen.Where(r=>r.Package!=null).ToList();var preserved=new List<string>();foreach(var row in sourceRows){row.ManualIssue=null;row.Manual=null;}var map=sourceRows.ToDictionary(r=>RowId(r));string root=game.Text;bool server=serverMode;var roots=workshopLocations.ToArray();List<InstallPreflight> plan;
-   SetBusy(true,true);status.Text=L.Get("Preflight");try{plan=await Task.Run(()=>BatchPlanner.Build(sourceRows.Select(r=>r.Package),p=>new Engine(root,store,preview,server,p.Manifest.scopeId,roots),true));}finally{SetBusy(false);}
-   foreach(var item in plan){var row=map[item.Package.Manifest.id];if(!string.IsNullOrEmpty(row.ManualIssue))item.Error=row.ManualIssue;}
+ } public partial class MainForm {
+#if TEST_BUILD
+  internal Action PreflightTestStarted;
+#endif
+  async Task InstallBatch(bool skipIdentical=false){if(busy)return;try{if(!CatalogMatchesTarget())throw new Exception(L.Get("PathsNeedScan"));var chosen=Selected();if(chosen.Count==0)throw new Exception(L.Get("Text114"));var sourceRows=chosen.Where(r=>r.Package!=null).ToList();var map=sourceRows.ToDictionary(r=>RowId(r));string root=game.Text;bool server=serverMode;var roots=workshopLocations.ToArray();List<InstallPreflight> plan;var sources=sourceRows.Select(r=>r.Package).ToArray();batchCancellation=new CancellationTokenSource();var cancellation=batchCancellation.Token;
+   SetBusy(true,true);status.Text=L.Get("Preflight");try{plan=await Task.Run(()=>{
+#if TEST_BUILD
+    if(PreflightTestStarted!=null)PreflightTestStarted();
+#endif
+    return BatchPlanner.Build(sources,p=>new Engine(root,store,preview,server,p.Manifest.scopeId,roots),true,cancellation,Report);
+   });}finally{SetBusy(false);}
+   cancellation.ThrowIfCancellationRequested();
    foreach(var item in plan.Where(p=>p.Safe))rowErrors.Remove(item.Package.Manifest.id);
    foreach(var item in plan.Where(p=>!p.Safe)){rowErrors[item.Package.Manifest.id]=item.Error;AddActivity(item.Error,"ErrorLog",item.Package.Manifest.id,L.Get("Preflight"));}
-   var safe=plan.Where(p=>p.Safe).ToList();int skipped=chosen.Count-safe.Count;string description=(preserved.Count==0?"":L.Get("ManualPreserved")+Environment.NewLine+string.Join(Environment.NewLine,preserved)+Environment.NewLine+Environment.NewLine)+string.Format(L.Get("PreflightSummary"),safe.Count,plan.Count(p=>!p.Safe),chosen.Count(r=>r.Package==null))+Environment.NewLine+root+Environment.NewLine+Environment.NewLine+string.Join(Environment.NewLine,plan.Select(p=>(p.Safe?"✓ ":"! ")+ModNames.Display(p.Package)+" · "+p.Package.Manifest.version+Environment.NewLine+(p.Engine==null?"":p.Engine.Root)+(!p.Safe?Environment.NewLine+p.Error:"")))+(safe.Count>0?Environment.NewLine+Environment.NewLine+L.Get("CloseGame"):"");
+   var safe=plan.Where(p=>p.Safe).ToList();int skipped=chosen.Count-safe.Count;
+   var issues=plan.Where(p=>!p.Safe).Select(p=>ModNames.Display(p.Package)+Environment.NewLine+p.Error).ToList();
+   RefreshProblems();
+   if(safe.Count==0){
+    status.Text=L.Get("NothingSafe");progress.Value=0;batchCompleted=batchSuccess=batchFailed=0;batchSkipped=chosen.Count;UpdateProgressPanel();
+    ShowResult(status.Text,string.Format(L.Get("PreflightSummary"),0,plan.Count,chosen.Count-plan.Count),issues);return;
+   }
    bool downgrade=safe.Any(i=>{var row=map[i.Package.Manifest.id];return row.Installed!=null&&(VersionOrder.Newer(row.Installed.version,i.Package.Manifest.version)||VersionOrder.Compare(row.Installed.version,i.Package.Manifest.version)==null);});
-   if(downgrade)description+=Environment.NewLine+Environment.NewLine+L.Get("Text116")+L.Get("Text117");
-   if(safe.Any(i=>i.Package.Manifest.kind=="module"))description+=Environment.NewLine+Environment.NewLine+L.Get("Text119");
-   foreach(var item in safe.Where(i=>i.Collisions.Count>0))description+=Environment.NewLine+Environment.NewLine+string.Format(L.Get("OverwriteReview"),ModNames.Display(item.Package),item.Collisions.Count)+Environment.NewLine+string.Join(Environment.NewLine,item.Collisions.Keys.Take(8));
-   RefreshProblems();if(safe.Count==0){string preservationSummary=L.Get(preserved.Count>0&&plan.Count==0?"ManualPreserved":"NothingSafe");status.Text=preservationSummary;progress.Value=preserved.Count>0&&plan.Count==0?100:0;batchCompleted=batchSuccess=batchFailed=0;batchSkipped=chosen.Count;UpdateProgressPanel();ShowResult(preservationSummary,description,new List<string>());return;}
    if(downgrade&&Dialogs.Show(L.Get("Text116")+L.Get("Text117"),Text,MessageBoxButtons.YesNo,MessageBoxIcon.Warning)!=DialogResult.Yes)return;
-   var approved=safe;
-   batchCompleted=0;batchSuccess=0;batchFailed=0;batchSkipped=skipped;var blocked=new HashSet<string>(StringComparer.OrdinalIgnoreCase);SetBusy(true);try{SaveSettings();foreach(var item in approved){var row=map[item.Package.Manifest.id];if(blocked.Contains(item.Engine.State)){batchSkipped++;continue;}batchModule=ModNames.Display(item.Package);UpdateProgressPanel();SetRowOperation(row,L.Get(row.Installed==null?"InstallingState":"UpdatingState"));item.Engine.Progress=Report;try{await Task.Run(()=>item.Engine.Install(item.Package,item.Collisions,downgrade,true));rowErrors.Remove(RowId(row));batchSuccess++;AddActivity(L.Get("InstallComplete")+" "+string.Format(L.Get("FileOutcome"),item.Engine.LastWrittenFiles,item.Engine.LastUnchangedFiles),"Success",RowId(row),L.Get("Text009"));}catch(Exception ex){batchFailed++;RecordRowError(row,ex);if(item.Engine.NeedsRecovery)blocked.Add(item.Engine.State);}finally{batchCompleted++;SetRowOperation(row,null);UpdateProgressPanel();}}}finally{batchModule=null;SetBusy(false);}
-   await RefreshInstalledState();string summary=string.Format(L.Get("BatchCounts"),batchCompleted,batchSuccess,batchSkipped,batchFailed);status.Text=summary;progress.Value=batchFailed==0&&batchSkipped==0?100:0;AddActivity(summary,batchFailed>0?"ErrorLog":batchSkipped>0?"WarningLog":"Success");RefreshProblems();string instructions=string.Join(Environment.NewLine+Environment.NewLine,approved.Where(i=>!rowErrors.ContainsKey(i.Package.Manifest.id)).Select(i=>ModNames.Display(i.Package)+Environment.NewLine+InstallTarget.Instructions(i.Package,server)));ShowResult(summary,instructions,new List<string>());
-  }catch(Exception ex){Error(ex);}finally{if(busy)SetBusy(false);}}
+   var completed=new List<Package>();
+   var blocked=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+   batchCompleted=batchSuccess=batchFailed=0;batchSkipped=skipped;batchWriting=true;SetBusy(true);
+   try{
+    for(int index=0;index<safe.Count;index++){
+     if(cancellation.IsCancellationRequested){batchSkipped+=safe.Count-index;break;}
+     var item=safe[index];var row=map[item.Package.Manifest.id];
+     if(blocked.Contains(item.Engine.State)){batchSkipped++;issues.Add(ModNames.Display(item.Package)+Environment.NewLine+L.Get("PendingBlocksInstall"));continue;}
+     SetBatchItem(item.Engine,index,safe.Count,ModNames.Display(item.Package));
+     SetRowOperation(row,L.Get(row.Installed==null?"InstallingState":"UpdatingState"));
+     try{
+      await Task.Run(()=>item.Engine.Install(item.Package,null,downgrade,true,cancellation,skipIdentical));
+      rowErrors.Remove(RowId(row));row.Manual=null;row.ManualIssue=null;completed.Add(item.Package);batchSuccess++;batchCompleted++;
+      AddActivity(L.Get("InstallComplete")+" "+string.Format(L.Get("FileOutcome"),item.Engine.LastWrittenFiles,item.Engine.LastUnchangedFiles),"Success",RowId(row),L.Get("Text009"));
+     }catch(OperationCanceledException){batchSkipped+=safe.Count-index;break;}
+     catch(Exception ex){
+      batchFailed++;batchCompleted++;RecordRowError(row,ex);issues.Add(batchModule+Environment.NewLine+RowError(row));
+      if(item.Engine.NeedsRecovery)blocked.Add(item.Engine.State);
+     }finally{SetRowOperation(row,null);UpdateProgressPanel();}
+    }
+   }finally{batchModule=null;SetBusy(false);}
+   await RefreshInstalledState();string summary=string.Format(L.Get("BatchCounts"),batchCompleted,batchSuccess,batchSkipped,batchFailed);status.Text=summary;progress.Value=batchFailed==0&&batchSkipped==0?100:0;AddActivity(summary,batchFailed>0?"ErrorLog":batchSkipped>0?"WarningLog":"Success");RefreshProblems();string instructions=string.Join(Environment.NewLine+Environment.NewLine,completed.Select(p=>ModNames.Display(p)+Environment.NewLine+InstallTarget.Instructions(p,server)));if(cancellation.IsCancellationRequested){summary=L.Get("BatchStopped")+" · "+summary;status.Text=summary;AddActivity(summary,"WarningLog");}ShowResult(summary,instructions,issues);
+  }catch(OperationCanceledException){status.Text=L.Get("PreflightCancelled");progress.Value=0;AddActivity(status.Text,"Info");}
+   catch(Exception ex){Error(ex);}
+   finally{FinishBatchOperation();}
+  }
+
+  void SetBatchItem(Engine engine,int index,int count,string name){
+   batchModule=string.Format(L.Get("BatchItem"),index+1,count,name);
+   UpdateProgressPanel();status.Text=batchModule;
+   string caption=batchModule;
+   engine.Progress=(percent,message)=>Report((index*100+percent)/count,caption+" · "+message);
+  }
+
+  void FinishBatchOperation(){
+   batchWriting=batchRemoving=false;
+   if(batchCancellation!=null){batchCancellation.Dispose();batchCancellation=null;}
+   SetBusy(false);
+   if(closeAfterBatch){closeAfterBatch=false;BeginInvoke(new Action(Close));}
+  }
  }
 }

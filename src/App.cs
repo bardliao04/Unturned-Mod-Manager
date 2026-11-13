@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
@@ -10,8 +10,8 @@ using System.Net;
 using System.Diagnostics;
 
 [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8")]
-[assembly: System.Reflection.AssemblyVersion("1.0.1.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.0.1.0")]
+[assembly: System.Reflection.AssemblyVersion("1.3")]
+[assembly: System.Reflection.AssemblyFileVersion("1.3")]
 [assembly: System.Reflection.AssemblyProduct("Unturned 模組管理器")]
 
 namespace UnturnedModManager {
@@ -24,15 +24,20 @@ namespace UnturnedModManager {
   List<VersionOption> versionRows=new List<VersionOption>();
   List<Control> actions=new List<Control>(); List<Package> imported=new List<Package>();List<Row> rows=new List<Row>();
   readonly ToolTip hints=new ToolTip{InitialDelay=600,ReshowDelay=150,AutoPopDelay=12000,ShowAlways=true};
-  public MainForm(string folder,string state,bool renderOnly=false) {
+  public MainForm(string folder,string state,bool renderOnly=false,string packageSource=null) {
    preview=renderOnly;
    home=folder;store=state;Font=new Font("Microsoft JhengHei UI",10);Text=L.Get("Text001")+ManagerUpdates.Current;ClientSize=new Size(1080,790);MinimumSize=new Size(960,740);StartPosition=FormStartPosition.CenterScreen;BackColor=Color.FromArgb(245,247,251);AutoScaleMode=AutoScaleMode.Dpi;
    try{settings=File.Exists(Path.Combine(store,"settings.json"))?Data.Read<Settings>(Path.Combine(store,"settings.json")):new Settings();if(settings==null)throw new Exception(L.Get("Text002"));}catch(Exception ex){startupIssue=L.Get("Text003")+Environment.NewLine+Problems.Explain(ex);settings=new Settings();}
    InitializeOrganization();if(settings.packageFolders==null)settings.packageFolders=new List<string>();
+   if(packageSource!=null){
+    Packages.LoadAll(packageSource,"local");
+    string source=Path.GetFullPath(packageSource);
+    if(!settings.packageFolders.Any(p=>Data.Same(p,source)))settings.packageFolders.Add(source);
+   }
    if(settings.versionChoices==null)settings.versionChoices=new Dictionary<string,string>();
    L.Language=settings.language;Themes.Select(settings.theme);serverMode=settings.serverMode;Build();BuildExperience();BuildModernWorkflow();BuildDashboard();BuildResponsive();BuildReconciliationExperience();game.Text=(serverMode?settings.serverRoot:settings.gameRoot)??"";workshop.Text=settings.workshopRoot??"";UpdateTarget();
    targetChoice.SelectedIndexChanged+=async delegate{if(busy)return;bool next=targetChoice.SelectedIndex==1;if(next==serverMode)return;RememberTarget();serverMode=next;game.Text=(serverMode?settings.serverRoot:settings.gameRoot)??"";UpdateTarget();await Scan(false,string.IsNullOrWhiteSpace(game.Text));};
-   Shown+=async delegate{await Scan(false,string.IsNullOrWhiteSpace(game.Text)||string.IsNullOrWhiteSpace(workshop.Text));if(!preview)await CheckUpdates();};FormClosing+=delegate(object s,FormClosingEventArgs e){if(busy){e.Cancel=true;Dialogs.Show(L.Get("Text004"),Text);}};
+   Shown+=async delegate{await Scan(false,string.IsNullOrWhiteSpace(game.Text)||string.IsNullOrWhiteSpace(workshop.Text));if(!preview)await CheckUpdates();};FormClosing+=delegate(object s,FormClosingEventArgs e){if(busy){e.Cancel=true;if(batchCancellation!=null){closeAfterBatch=true;RequestOperationCancel();}else Dialogs.Show(L.Get("Text004"),Text);}};
   }
   Button Button(string caption,EventHandler action,string hint=null) {var b=new ModernButton{Text=caption,AutoSize=true,Height=35,FlatStyle=FlatStyle.Flat,BackColor=Color.White,Padding=new Padding(10,3,10,3),Margin=new Padding(4)};b.FlatAppearance.BorderColor=Color.FromArgb(210,217,228);b.Click+=action;actions.Add(b);hints.SetToolTip(b,hint??ButtonHint(caption));if(caption==L.Get("Text009"))b.Tag="primary";if(caption==L.Get("Text011")||caption==L.Get("Text040"))b.Tag="danger";return b;}
   static string ButtonHint(string caption){
@@ -68,14 +73,14 @@ namespace UnturnedModManager {
   Label AddPath(TableLayoutPanel panel,int row,string caption,TextBox field,EventHandler browse) {var label=new Label{Text=caption,Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft};panel.Controls.Add(label,0,row);field.Dock=DockStyle.Fill;field.Margin=new Padding(4,8,4,4);panel.Controls.Add(field,1,row);panel.Controls.Add(Button(L.Get("Text043"),browse,field==workshop?L.Get("Text044"):L.Get("Text045")),2,row);return label;}
   void RememberTarget(){if(serverMode)settings.serverRoot=game.Text.Trim();else settings.gameRoot=game.Text.Trim();}
   void UpdateTarget(){RefreshModernTexts();targetPathLabel.Text=serverMode?L.Get("Text046"):L.Get("Text021");autoFind.Text=serverMode?L.Get("Text047"):L.Get("Text023");hints.SetToolTip(autoFind,serverMode?L.Get("Text048"):L.Get("Text049"));hints.SetToolTip(targetChoice,L.Get("Text050"));}
-  async Task ImportZip(){if(busy)return;string file;using(var dialog=new OpenFileDialog{Title=L.Get("Text051"),Filter=L.Get("Text052"),CheckFileExists=true}){if(dialog.ShowDialog(this)!=DialogResult.OK)return;file=dialog.FileName;}var loaded=await ImportFromFile(file);if(loaded==null)return;ShowResult(L.Get("Text058"),ModNames.Display(loaded)+" · "+loaded.Manifest.version+Environment.NewLine+string.Format(L.Get("ImportedScopes"),rows.Count(r=>r.Options!=null&&r.Options.Any(o=>Data.Same(o.Key,loaded.Folder))))+Environment.NewLine+L.Get("Text059"),new List<string>());}
+  async Task ImportZip(){if(busy)return;string file;using(var dialog=new OpenFileDialog{Title=L.Get("Text051"),Filter=L.Get("Text052"),CheckFileExists=true}){if(dialog.ShowDialog(this)!=DialogResult.OK)return;file=dialog.FileName;}var loaded=await ImportFromFile(file);if(loaded==null)return;ShowResult(L.Get("Text058"),ModNames.Display(loaded)+" · "+PackageVersions.Display(loaded)+Environment.NewLine+string.Format(L.Get("ImportedScopes"),rows.Count(r=>r.Options!=null&&r.Options.Any(o=>Data.Same(o.Key,loaded.Folder))))+Environment.NewLine+L.Get("Text059"),new List<string>());}
   async Task<Package> ImportFromFile(string file){if(busy)return null;Package package=null;importCancellation=new CancellationTokenSource();SetBusy(true,true);cancelScan.Text=L.Get("CancelImport");status.Text=L.Get("Text053");try{package=await Task.Run(()=>Packages.ImportZip(file,store,Report,importCancellation.Token));var scopes=await Task.Run(()=>{var values=Packages.LoadAll(package.Folder,L.Get("Text155"));if(serverMode)foreach(var p in values){string reason;InstallTarget.SupportsServer(p,out reason);p.ServerIssue=reason;}return values;});imported.AddRange(scopes);if(!settings.packageFolders.Any(p=>Data.Same(p,package.Folder)))settings.packageFolders.Add(package.Folder);SaveSettings();await MergeCatalog(scopes,null);Append(L.Get("Text055")+ModNames.Display(package));}catch(OperationCanceledException){package=null;status.Text=L.Get("ImportCancelled");Append(status.Text);}catch(Exception ex){package=null;Error(ex);}finally{importCancellation.Dispose();importCancellation=null;SetBusy(false);cancelScan.Text=L.Get("CancelScan");}return package;}
   async void Browse(TextBox field) {using(var d=new FolderBrowserDialog()){if(Directory.Exists(field.Text))d.SelectedPath=field.Text;if(d.ShowDialog()==DialogResult.OK){field.Text=d.SelectedPath;await Scan(true);}}}
   void SaveSettings(){string settingFile=Path.Combine(store,"settings.json");if(settings.uiSchema<3&&File.Exists(settingFile)){Directory.CreateDirectory(Path.Combine(store,"SettingsBackups"));File.Copy(settingFile,Path.Combine(store,"SettingsBackups","before-dashboard-"+DateTime.UtcNow.ToString("yyyyMMddHHmmssfff")+"-"+Guid.NewGuid().ToString("N")+".json"));}settings.uiSchema=3;settings.theme=Themes.Current.Id;RememberTarget();settings.language=L.Language;settings.serverMode=serverMode;settings.workshopRoot=workshop.Text.Trim();Data.Write(Path.Combine(store,"settings.json"),settings);}
   List<string> workshopLocations=new List<string>(),pendingScopeIds=new List<string>();
   Engine GetEngine(Row row=null){string scope=row==null?null:row.Package==null?row.Installed.scopeId:row.Package.Manifest.scopeId;return GetScopeEngine(scope);}
   Engine GetScopeEngine(string scope){var e=new Engine(game.Text.Trim(),store,preview,serverMode,scope,workshopLocations);e.Progress=Report;return e;}
-  void SetBusy(bool value,bool scanning=false){progressMailbox.Clear();busy=value;SetExperienceBusy(value);foreach(var c in actions)c.Enabled=!value;foreach(var b in navButtons)b.Enabled=true;if(navToggle!=null)navToggle.Enabled=true;if(cancelScan!=null)cancelScan.Enabled=value&&(scanCancellation!=null||importCancellation!=null);UpdateProgressPanel();grid.Enabled=versionGrid.Enabled=!value;game.Enabled=workshop.Enabled=!value;UseWaitCursor=value;progress.Style=value&&scanning?ProgressBarStyle.Marquee:ProgressBarStyle.Continuous;if(value)progress.Value=0;UpdateVersionActions();UpdateSelection();}
+  void SetBusy(bool value,bool scanning=false){progressMailbox.Clear();busy=value;SetExperienceBusy(value);foreach(var c in actions)c.Enabled=!value;foreach(var b in navButtons)b.Enabled=true;if(navToggle!=null)navToggle.Enabled=true;RefreshCancelAction();UpdateProgressPanel();grid.Enabled=versionGrid.Enabled=true;grid.ReadOnly=value;versionGrid.ReadOnly=value;game.Enabled=workshop.Enabled=!value;UseWaitCursor=false;progress.Style=value&&scanning?ProgressBarStyle.Marquee:ProgressBarStyle.Continuous;if(value)progress.Value=0;UpdateVersionActions();UpdateSelection();}
   async Task Scan(bool notify=false,bool find=false) {
    if(busy)return;
    scanRuns++;if(notify||scannedGame!=null&&!CatalogMatchesTarget())rowErrors.Clear();scanCancellation=new CancellationTokenSource();SetBusy(true,true);bool completed=false;string targetName=serverMode?L.Get("Text060"):L.Get("Text061");string operation=find?L.Get("Text062")+targetName+L.Get("Text063"):L.Get("Text064");status.Text=L.Get("Text065")+operation+L.Get("Text066");Append(status.Text);
@@ -118,13 +123,13 @@ namespace UnturnedModManager {
    if(!string.IsNullOrEmpty(technical)){var toggle=new System.Windows.Forms.Button{Text=L.Get("TechnicalDetails"),AutoSize=true,Height=38,Margin=close.Margin};toggle.Click+=delegate{details.Visible=!details.Visible;layout.RowStyles[1].Height=details.Visible?140:0;};buttons.Controls.Add(toggle);}
    layout.Controls.Add(buttons,0,2);dialog.Controls.Add(layout);Theme(dialog);dialog.Shown+=delegate{body.Select(0,0);close.Focus();};return dialog;
   }
-  void ShowDetail(){RefreshDetailActions();var row=CurrentRowModel();if(row==null){detail.Text=L.Get("SelectModHint");return;}var p=row.Package;var installed=row.Installed;var latest=LatestPackage(row);string id=RowId(row);List<string> categories;settings.modCategories.TryGetValue(id,out categories);string target=row.TargetRoot??game.Text;string origin=p==null?"—":p.Folder;detail.Text=string.Join(Environment.NewLine,new[]{
-    L.Get("BasicInfo"),RawName(row),"Workshop ID: "+WorkshopIdFor(row),"ID: "+id,L.Get("Text031")+": "+(p==null?L.Get("Text068"):L.Text(p.Origin)),L.Get("Categories")+": "+(categories==null||categories.Count==0?"—":string.Join(", ",categories)),"",
-    L.Get("VersionInfo"),L.Get("InstalledVersion")+": "+(row.Manual!=null?row.Manual.Version:installed==null?"—":installed.version),L.Get("SelectedVersion")+": "+(p==null?"—":PackageVersions.Display(p)),L.Get("LatestVersion")+": "+(latest==null?L.Get("VersionUncertain"):PackageVersions.Display(latest)),"",
+  void ShowDetail(){RefreshDetailActions();var row=CurrentRowModel();if(row==null){detail.Text=L.Get("SelectModHint");return;}var p=row.Package;var installed=row.Installed;var latest=LatestPackage(row);string id=RowId(row);string target=row.TargetRoot??game.Text;string origin=p==null?"—":p.Folder;detail.Text=string.Join(Environment.NewLine,new[]{
+    L.Get("BasicInfo"),RawName(row),"Workshop ID: "+WorkshopIdFor(row),"ID: "+id,L.Get("Text031")+": "+(p==null?L.Get("Text068"):L.Text(p.Origin)),"",
+    L.Get("VersionInfo"),L.Get("InstalledVersion")+": "+InstalledVersionText(row),L.Get("SelectedVersion")+": "+(p==null?"—":PackageVersions.Display(p)),L.Get("LatestVersion")+": "+(latest==null?L.Get("VersionUncertain"):PackageVersions.Display(latest)),"",
     L.Get("PathsInfo"),L.Get("Text118")+ShortPath(target),L.Get("Text035")+": "+ShortPath(origin),L.ManagerMessage(row.ServerIssue),L.ManagerMessage(row.TargetIssue),L.ManagerMessage(row.Conflict),RowError(row),L.ManagerMessage(row.ManualIssue),"",p==null?"":L.Get("AuthorDescription")+Environment.NewLine+p.Manifest.description,p==null?"":InstallTarget.Instructions(p,serverMode)}.Where(t=>t!=null));detail.Select(0,0);hints.SetToolTip(detail,L.Get("Text118")+target+Environment.NewLine+L.Get("Text035")+": "+origin);}
   void RefreshRow(int index){var row=rows[index];var p=row.Package;var old=row.Installed;string reason="";if(p!=null&&serverMode)reason=p.ServerIssue??"";row.ServerIssue=reason;
-   string state=old==null?L.Get("Text092"):p==null?L.Get("Text093"):HasUpdate(row)?L.Get("Text094")+old.version:VersionOrder.Newer(old.version,p.Manifest.version)?L.Get("Text095")+old.version:L.Get("Text096")+old.version;
-   if(row.Manual!=null)state=string.Format(L.Get(HasUpdate(row)?"ManualUpdateAvailable":"ManualInstalled"),row.Manual.Version);if(old!=null&&old.retained)state=L.Get("RetainedState");if(reason.Length>0)state=old==null?L.Get("Text097"):L.Get("Text098");if(!string.IsNullOrEmpty(row.TargetIssue))state=L.Get("TargetUnavailable");string error;string id=p==null?old.id:p.Manifest.id;if(!string.IsNullOrEmpty(row.Conflict))state=L.Get("ConflictState");if(!string.IsNullOrEmpty(row.ManualIssue))state=L.Get("ErrorState");if(rowErrors.TryGetValue(id,out error))state=L.Get("ErrorState");if(!string.IsNullOrEmpty(row.Operation))state=row.Operation;grid.Rows[index].Cells[3].Value=state;grid.Rows[index].Cells[3].ToolTipText=error??row.ManualIssue??row.Conflict??(old!=null&&old.retained?L.Get("RetainedHelp"):reason);grid.Rows[index].Cells[1].ToolTipText=id+Environment.NewLine+(p==null?"":p.Manifest.description);grid.Rows[index].Cells[2].ToolTipText=p==null?"":PackageVersions.Display(p);grid.Rows[index].Cells[3].Style.ForeColor=!string.IsNullOrEmpty(row.Conflict)||rowErrors.ContainsKey(id)||!string.IsNullOrEmpty(row.ManualIssue)?Themes.Current.Error:reason.Length>0||old!=null&&old.retained?Themes.Current.Warning:old==null?Themes.Current.Muted:p!=null&&VersionOrder.Newer(p.Manifest.version,old.version)?Themes.Current.Accent:Themes.Current.Success;grid.Rows[index].Cells[4].Value=p==null?L.Get("Text068"):L.Text(p.Origin);grid.Rows[index].Cells[0].ReadOnly=reason.Length>0&&old==null;
+   string state=old==null?L.Get("Text092"):p==null?L.Get("Text093"):HasUpdate(row)?L.Get("Text094")+PackageVersions.DisplayInstalled(old,p):VersionOrder.Newer(old.version,p.Manifest.version)?L.Get("Text095")+PackageVersions.DisplayInstalled(old,p):L.Get("Text096")+PackageVersions.DisplayInstalled(old,p);
+   if(row.Manual!=null)state=string.Format(L.Get(HasUpdate(row)?"ManualUpdateAvailable":"ManualInstalled"),InstalledVersionText(row));if(old!=null&&old.retained)state=L.Get("RetainedState");if(reason.Length>0)state=old==null?L.Get("Text097"):L.Get("Text098");if(!string.IsNullOrEmpty(row.TargetIssue))state=L.Get("TargetUnavailable");string error;string id=p==null?old.id:p.Manifest.id;if(!string.IsNullOrEmpty(row.Conflict))state=L.Get("ConflictState");if(!string.IsNullOrEmpty(row.ManualIssue))state=L.Get("ErrorState");if(rowErrors.TryGetValue(id,out error))state=L.Get("ErrorState");if(!string.IsNullOrEmpty(row.Operation))state=row.Operation;grid.Rows[index].Cells[3].Value=state;grid.Rows[index].Cells[3].ToolTipText=error??row.ManualIssue??row.Conflict??(old!=null&&old.retained?L.Get("RetainedHelp"):reason);grid.Rows[index].Cells[1].ToolTipText=id+Environment.NewLine+(p==null?"":p.Manifest.description);grid.Rows[index].Cells[2].ToolTipText=p==null?"":PackageVersions.Display(p);grid.Rows[index].Cells[3].Style.ForeColor=!string.IsNullOrEmpty(row.Conflict)||rowErrors.ContainsKey(id)||!string.IsNullOrEmpty(row.ManualIssue)?Themes.Current.Error:reason.Length>0||old!=null&&old.retained?Themes.Current.Warning:old==null?Themes.Current.Muted:p!=null&&VersionOrder.Newer(p.Manifest.version,old.version)?Themes.Current.Accent:Themes.Current.Success;grid.Rows[index].Cells[4].Value=p==null?L.Get("Text068"):L.Text(p.Origin);grid.Rows[index].Cells[0].ReadOnly=reason.Length>0&&old==null;
    if(reason.Length>0&&old==null)grid.Rows[index].Cells[0].Value=false;
   }
   void ChangeVersion(int index){var row=rows[index];if(row.Options==null)return;var key=Convert.ToString(grid.Rows[index].Cells[2].Value);var option=row.Options.FirstOrDefault(o=>Data.Same(o.Key,key));if(option==null)return;row.Package=option.Package;row.ServerIssue=serverMode?option.Package.ServerIssue:null;settings.versionChoices[row.Package.Manifest.id]=option.Key;DetectConflicts(rows.Where(r=>r.Installed!=null).Select(r=>r.Installed).ToList());ShowDetail();RefreshVersions();ApplyFilter();try{SaveSettings();}catch(Exception ex){Error(ex);}}
@@ -137,7 +142,56 @@ namespace UnturnedModManager {
   async Task CheckUpdates(){try{Append(L.Get("Text105"));var update=await Task.Run(()=>ManagerUpdates.Fetch());if(IsDisposed)return;if(update==null){Append(L.Get("Text106")+ManagerUpdates.Current+"。");return;}Append(L.Get("Text107")+update.tag_name);if(!busy&&Dialogs.Show(L.Get("Text108")+update.tag_name+L.Get("Text109")+ManagerUpdates.Current+L.Get("Text110"), L.Get("Text111"),MessageBoxButtons.YesNo,MessageBoxIcon.Information)==DialogResult.Yes)Process.Start(update.html_url);}catch(Exception ex){if(!IsDisposed)Append(L.Get("Text112")+ex.Message+L.Get("Text113"));}}
   List<Row> Selected(){grid.EndEdit();return grid.Rows.Cast<DataGridViewRow>().Where(r=>r.Visible&&Convert.ToBoolean(r.Cells[0].Value)).Select(r=>rows[r.Index]).ToList();}
   async Task Install(){await InstallBatch();}
-  async Task Uninstall(){if(busy)return;try{if(!CatalogMatchesTarget())throw new Exception(L.Get("PathsNeedScan"));var chosen=Selected();if(chosen.Count==0||chosen.Any(r=>r.Installed==null||r.Manual!=null))throw new Exception(L.Get("Text125"));if(Dialogs.Show(L.Get("ReviewUninstall")+Environment.NewLine+game.Text+Environment.NewLine+Environment.NewLine+string.Join(Environment.NewLine,chosen.Select(r=>RawName(r)+" · "+r.Installed.version+Environment.NewLine+(r.TargetRoot??game.Text)))+Environment.NewLine+Environment.NewLine+L.Get("RestoreOriginals"),Text,MessageBoxButtons.YesNo,MessageBoxIcon.Warning)!=DialogResult.Yes)return;string root=game.Text;bool server=serverMode;var roots=workshopLocations.ToArray();var scoped=chosen.ToDictionary(r=>r,r=>r.Installed.scopeId);Dictionary<Row,Engine> uninstallEngines;SetBusy(true,true);try{uninstallEngines=await Task.Run(()=>scoped.ToDictionary(p=>p.Key,p=>{var e=new Engine(root,store,preview,server,p.Value,roots);e.Progress=Report;return e;}));}finally{SetBusy(false);}if(uninstallEngines.Values.Any(e=>e.NeedsRecovery)){Dialogs.Show(L.Get("PendingBlocksInstall"),Text);return;}await Run(delegate{foreach(var row in chosen){SetRowOperation(row,L.Get("RemovingState"));try{uninstallEngines[row].Uninstall(row.Installed.id);}catch(Exception ex){RecordRowError(row,ex);throw;}finally{SetRowOperation(row,null);}}});}catch(Exception ex){Error(ex);}}
+  async Task Uninstall(){
+   if(busy)return;
+   try{
+    if(!CatalogMatchesTarget())throw new Exception(L.Get("PathsNeedScan"));
+    var chosen=Selected();
+    if(chosen.Count==0||chosen.Any(r=>r.Installed==null||r.Manual!=null))throw new Exception(L.Get("Text125"));
+    string root=game.Text;bool server=serverMode;var roots=workshopLocations.ToArray();
+    string review=L.Get("ReviewUninstall")+Environment.NewLine+root+Environment.NewLine+Environment.NewLine
+     +string.Join(Environment.NewLine,chosen.Select(r=>RawName(r)+" · "+InstalledVersionText(r)+Environment.NewLine+(r.TargetRoot??root)))
+     +Environment.NewLine+Environment.NewLine+L.Get("RestoreOriginals");
+    if(Dialogs.Show(review,Text,MessageBoxButtons.YesNo,MessageBoxIcon.Warning)!=DialogResult.Yes)return;
+
+    var engines=new Dictionary<string,Engine>(StringComparer.OrdinalIgnoreCase);
+    var issues=new List<string>();
+    batchCancellation=new CancellationTokenSource();
+    var cancellation=batchCancellation.Token;
+    batchCompleted=batchSuccess=batchSkipped=batchFailed=0;
+    batchRemoving=true;SetBusy(true);
+    try{
+     for(int index=0;index<chosen.Count;index++){
+      if(cancellation.IsCancellationRequested){batchSkipped+=chosen.Count-index;break;}
+      var row=chosen[index];var installed=row.Installed;string id=installed.id,name=RawName(row);
+      try{
+       string scope=installed.scopeId??"";
+       Engine engine;
+       if(!engines.TryGetValue(scope,out engine)){
+        engine=await Task.Run(()=>new Engine(root,store,preview,server,installed.scopeId,roots));
+        engines.Add(scope,engine);
+       }
+       if(engine.NeedsRecovery){batchSkipped++;issues.Add(name+Environment.NewLine+L.Get("PendingBlocksInstall"));continue;}
+       SetBatchItem(engine,index,chosen.Count,name);
+       SetRowOperation(row,L.Get("RemovingState"));
+       await Task.Run(()=>engine.Uninstall(id,cancellation));
+       rowErrors.Remove(id);batchSuccess++;batchCompleted++;
+       AddActivity(name+L.Get("Text183"),"Success",id,L.Get("Text011"));
+      }catch(OperationCanceledException){batchSkipped+=chosen.Count-index;break;}
+      catch(Exception ex){batchFailed++;batchCompleted++;RecordRowError(row,ex);issues.Add(name+Environment.NewLine+RowError(row));}
+      finally{SetRowOperation(row,null);UpdateProgressPanel();}
+     }
+    }finally{batchModule=null;SetBusy(false);}
+    await RefreshInstalledState();
+    string summary=string.Format(L.Get("BatchCounts"),batchCompleted,batchSuccess,batchSkipped,batchFailed);
+    if(cancellation.IsCancellationRequested)summary=L.Get("RemovalStopped")+" · "+summary;
+    status.Text=summary;progress.Value=100;
+    AddActivity(summary,issues.Count>0?"WarningLog":"Success");
+    RefreshProblems();
+    if(issues.Count>0)ShowResult(summary,"",issues);
+   }catch(Exception ex){Error(ex);}
+   finally{FinishBatchOperation();}
+  }
   async Task<bool> Run(Action action){SetBusy(true);status.Text=L.Get("Text128");
    bool success=false;string finalText="";try{SaveSettings();await Task.Run(action);success=true;finalText=L.Get("Text129");}catch(Exception ex){Error(ex);finalText=L.Get("Text130")+ex.Message;}finally{SetBusy(false);}await RefreshInstalledState();status.Text=finalText;progress.Value=success?100:0;Append(finalText);return success;}
   void Append(string message){AddActivity(message);UpdateProgressPanel();}
@@ -146,22 +200,32 @@ namespace UnturnedModManager {
  }
  static class Program {
   [STAThread] static int Main(string[] args){
-   try{if(args.Length>0&&args[0]=="--self-test")return Tests.Run(args.Length>1?args[1]:Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"TestResults"));
+   try{
+#if TEST_BUILD
+    if(args.Length==3&&args[0]=="--test-compact")return CompactPackages.VerifyRoundTrip(args[1],args[2]);
+#endif
+    if(args.Length==3&&args[0]=="--export-compact"){CompactPackages.Export(args[1],args[2]);return 0;}
+#if TEST_BUILD
+    if(args.Length>0&&args[0]=="--self-test")return Tests.Run(args.Length>1?args[1]:Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"TestResults"));
     if(args.Length>=3&&args[0]=="--test-package")return Tests.ExistingPackage(args[1],args[2]);
     if(args.Length>=3&&args[0]=="--test-server-package")return Tests.ExistingPackage(args[1],args[2],true);
     if(args.Length>=3&&args[0]=="--test-zip")return Tests.ExistingZip(args[1],args[2]);
+#endif
     Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);string home=AppDomain.CurrentDomain.BaseDirectory;string store=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"UnturnedModManager");
+#if TEST_BUILD
     if(args.Length>=6&&args[0]=="--reconcile-audit")return ReconciliationTests.Audit(args[1],args[2],args[3],args[4],args[5]);
     if(args.Length>=2&&args[0]=="--reconcile-test")return ReconciliationTests.Run(args[1]);
+    if(args.Length>=2&&args[0]=="--preflight-test")return PreflightTests.Run(args[1]);
     if(args.Length>=2&&args[0]=="--responsive-test")return ResponsiveTests.Run(args[1]);
     if(args.Length>=2&&args[0]=="--dashboard-test"){using(var deadline=new TestDeadline(120000))return DashboardTests.Run(args[1]);}
     if(args.Length>=2&&args[0]=="--workflow-test")return WorkflowTests.Run(args[1]);
     if(args.Length>=3&&args[0]=="--test-scope-zip")return WorkflowTests.RealZip(args[1],args[2]);
     if(args.Length>=4&&args[0]=="--test-localization")return WorkflowTests.RealPackage(args[1],args[2],args[3]);
     if(args.Length>=2&&args[0]=="--ui-test"){using(var deadline=new TestDeadline(180000))return ExperienceTests.Run(args[1]);}
+#endif
     if(args.Length>=3&&args[0]=="--preview"){using(var f=new MainForm(home,args[2],true))f.Preview(args[1]);return 0;}
-    using(var f=new MainForm(home,store))Application.Run(f);return 0;
-   }catch(Exception ex){if(args.Length>0){Console.Error.WriteLine(ex);return 1;}Dialogs.Show(ex.Message,L.Get("Text000"));return 1;}
+    using(var f=new MainForm(home,store,false,args.Length==2&&args[0]=="--source"?args[1]:null))Application.Run(f);return 0;
+   }catch(Exception ex){if(args.Length>0&&args[0]!="--source"){Console.Error.WriteLine(ex);return 1;}Dialogs.Show(ex.Message,L.Get("Text000"));return 1;}
   }
 }
 }

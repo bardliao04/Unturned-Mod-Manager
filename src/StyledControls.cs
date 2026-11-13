@@ -60,7 +60,7 @@ namespace UnturnedModManager {
  }
  public class SectionPanel : Panel {
   public string TitleKey;string title;public string Title{get{return title;}set{title=value;Invalidate();}}
-  public SectionPanel(){DoubleBuffered=true;}
+  public SectionPanel(){DoubleBuffered=true;SetStyle(ControlStyles.ResizeRedraw,true);}
   protected override void OnPaintBackground(PaintEventArgs e){e.Graphics.Clear(Parent==null?Themes.Current.Background:Parent.BackColor);var t=Themes.Current;using(var path=Round(new Rectangle(1,1,Width-3,Height-3),12)){e.Graphics.SmoothingMode=SmoothingMode.AntiAlias;using(var b=new SolidBrush(t.Surface))e.Graphics.FillPath(b,path);using(var p=new Pen(t.Border))e.Graphics.DrawPath(p,path);}TextRenderer.DrawText(e.Graphics,Title??"",Font,new Rectangle(15,10,Math.Max(1,Width-30),26),t.Text,TextFormatFlags.Left|TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis);}
   internal static GraphicsPath Round(Rectangle box,int radius){var p=new GraphicsPath();if(box.Width<radius*2||box.Height<radius*2){p.AddRectangle(box);return p;}p.AddArc(box.Left,box.Top,radius*2,radius*2,180,90);p.AddArc(box.Right-radius*2,box.Top,radius*2,radius*2,270,90);p.AddArc(box.Right-radius*2,box.Bottom-radius*2,radius*2,radius*2,0,90);p.AddArc(box.Left,box.Bottom-radius*2,radius*2,radius*2,90,90);p.CloseFigure();return p;}
  }

@@ -23,17 +23,76 @@ namespace UnturnedModManager {
  }
  public partial class MainForm {
   [System.Runtime.InteropServices.DllImport("user32.dll",EntryPoint="SendMessageW")]static extern IntPtr SendTestKey(IntPtr handle,int message,IntPtr key,IntPtr flags);
-  sealed class ScrollPaintProbe : NativeWindow,IDisposable {public int Count;public ScrollPaintProbe(Control control){AssignHandle(control.Handle);}protected override void WndProc(ref Message m){if(m.Msg==0xF)Count++;base.WndProc(ref m);}public void Dispose(){ReleaseHandle();}}
-  public async Task VerifyResponsive(string output,string zip,List<string> results){int scans=scanRuns;AssertExperience(navKeys[0]=="Guide"&&overviewPage.Text==L.Get("Guide"),"overview is replaced by a localized guide",results);tabs.SelectedIndex=4;PerformLayout();Application.DoEvents();AssertExperience(FindControls(overviewPage).OfType<SectionPanel>().Count(p=>p.TitleKey!=null&&p.TitleKey!="Guide"&&p.TitleKey.StartsWith("Guide"))==12,"guide contains twelve detailed topics without invented statistics",results);
-   foreach(string code in L.Languages){ChangeLanguage(Array.IndexOf(L.Languages,code));AssertExperience(FindControls(overviewPage).OfType<SectionPanel>().Any(p=>p.Title==L.Get("GuideDownload")),"guide localizes in "+code,results);var chapters=FindControls(overviewPage).OfType<SectionPanel>().Where(c=>c.TitleKey!=null&&c.TitleKey.StartsWith("Guide")&&c.TitleKey!="Guide").ToArray();AssertExperience(chapters.All(c=>{var body=c.Controls.OfType<Label>().Single();return body.Text.Length>100&&TextRenderer.MeasureText(body.Text,body.Font,new Size(Math.Max(100,body.Width-4),int.MaxValue),TextFormatFlags.WordBreak).Height<=body.Height;}),"all guide topics display their complete text in "+code,results);var guideQuery=FindControls(overviewPage).OfType<TextBox>().Single(t=>t.Name=="guideSearch");guideQuery.Text=L.Get("GuideBackup");Application.DoEvents();AssertExperience(chapters.Count(c=>c.Visible)==1&&chapters.Single(c=>c.Visible).TitleKey=="GuideBackup","guide search finds the backup instructions in "+code,results);guideQuery.Text="no-match-guide-fixture-79481";Application.DoEvents();AssertExperience(FindControls(overviewPage).Single(c=>c.Name=="guideEmpty").Visible&&chapters.All(c=>!c.Visible),"guide search explains an empty result in "+code,results);guideQuery.Text="";Application.DoEvents();using(var picture=new Bitmap(ClientSize.Width,ClientSize.Height)){Controls[0].DrawToBitmap(picture,new Rectangle(Point.Empty,ClientSize));picture.Save(Path.Combine(output,"guide-"+code+".png"));}}
-   var guideFlow=FindControls(overviewPage).OfType<FlowLayoutPanel>().Single(p=>p.AutoScroll);var guideSkin=(ScrollSurface)guideFlow.Parent.Parent;guideSkin.Sync();var guideBar=guideSkin.Controls.OfType<SlimScrollBar>().Single(b=>!b.Horizontal);
-   foreach(string code in L.Languages){ChangeLanguage(Array.IndexOf(L.Languages,code));tabs.SelectedIndex=4;Application.DoEvents();guideFlow.AutoScrollPosition=Point.Empty;guideSkin.Sync();var paintProbe=new ScrollPaintProbe(guideBar);var actualThumb=(Rectangle)typeof(SlimScrollBar).GetProperty("Thumb",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance).GetValue(guideBar,null);int thumbY=actualThumb.Top+Math.Min(6,actualThumb.Height/2);Console.WriteLine("BAR visible="+guideBar.Visible+" size="+guideBar.Size+" thumb="+actualThumb+" pos="+guideBar.Position);SendTestKey(guideBar.Handle,0x201,(IntPtr)1,(IntPtr)((thumbY<<16)|7));int lastPosition=0;bool monotonic=true;var dragWatch=Stopwatch.StartNew();for(int move=1;move<=120;move++){SendTestKey(guideBar.Handle,0x200,(IntPtr)1,(IntPtr)(((thumbY+move)<<16)|7));int current=-guideFlow.AutoScrollPosition.Y;monotonic&=current>=lastPosition;lastPosition=current;}AssertExperience(lastPosition>200&&guideBar.Capture&&monotonic,"guide drag moves monotonically before mouse release in "+code,results);Console.WriteLine("HELD PAINTS="+paintProbe.Count);AssertExperience(paintProbe.Count>50,"thumb repaints during continuous held mouse messages in "+code,results);SendTestKey(guideBar.Handle,0x200,(IntPtr)1,(IntPtr)(((guideBar.Height+100)<<16)|7));AssertExperience(guideBar.Position==guideBar.Total-guideBar.Page,"drag reaches the exact bottom without releasing in "+code,results);SendTestKey(guideBar.Handle,0x200,(IntPtr)1,(IntPtr)((-50<<16)|7));AssertExperience(guideBar.Position==0&&guideFlow.AutoScrollPosition.Y==0,"drag returns to the exact top without jumping in "+code,results);SendTestKey(guideBar.Handle,0x202,IntPtr.Zero,(IntPtr)((8<<16)|7));AssertExperience(!guideBar.Capture,"release ends thumb capture in "+code,results);int paints=paintProbe.Count;paintProbe.Dispose();guideSkin.Wheel(-120);AssertExperience(-guideFlow.AutoScrollPosition.Y>0,"wheel still scrolls after thumb dragging in "+code,results);guideFlow.AutoScrollPosition=Point.Empty;guideSkin.Sync();SendTestKey(guideBar.Handle,0x201,(IntPtr)1,(IntPtr)((8<<16)|7));guideBar.Capture=false;int beforeLost=guideBar.Position;SendTestKey(guideBar.Handle,0x200,(IntPtr)1,(IntPtr)((180<<16)|7));AssertExperience(guideBar.Position==beforeLost,"lost capture stops dragging in "+code,results);results.Add("BENCHMARK held thumb 120 moves "+code+"="+dragWatch.ElapsedMilliseconds+"ms; paints="+paints);guideFlow.AutoScrollPosition=Point.Empty;guideSkin.Sync();}
+  public async Task VerifyResponsive(string output,string zip,List<string> results){
+   int scans=scanRuns;
+   AssertExperience(navKeys.SequenceEqual(new[]{"Text024","ProblemCenter","Settings"}),"navigation exposes mods, troubleshooting and settings",results);
+   foreach(string code in L.Languages){
+    ChangeLanguage(Array.IndexOf(L.Languages,code));tabs.SelectedIndex=0;PerformLayout();Application.DoEvents();
+    var commands=batchBar.Controls.Cast<Control>().ToArray();
+    AssertExperience(commands.SequenceEqual(new Control[]{installButton,updateRecommended,uninstallButton})&&commands.All(c=>c.Visible),"main view exposes only the three batch actions in "+code,results);
+    AssertExperience(filter.Items.Count==4,"mod filter shows the basic installation states in "+code,results);
+   }
+   VerifyCompactChrome(output,results);
    var picker=(StyledComboBox)themeChoice;SendTestKey(picker.Handle,0x104,(IntPtr)0x28,IntPtr.Zero);AssertExperience(picker.OpenChoices!=null&&picker.OpenChoices.Items.Count==4,"Alt+Down opens the themed selector menu",results);picker.OpenChoices.Close();
    tabs.SelectedIndex=0;int pulses=0;long maxGap=0;var wall=Stopwatch.StartNew();long last=0;using(var heartbeat=new System.Windows.Forms.Timer{Interval=25}){heartbeat.Tick+=delegate{long now=wall.ElapsedMilliseconds;maxGap=Math.Max(maxGap,now-last);last=now;pulses++;};heartbeat.Start();SetBusy(true);await Task.Run(()=>{for(int block=0;block<40;block++){for(int n=0;n<1000;n++)Report(n%100,"progress fixture");Thread.Sleep(10);}});Report(12,"stale progress fixture");status.Text="terminal fixture";SetBusy(false);AssertExperience(status.Text=="terminal fixture","late progress cannot overwrite a completed or cancelled result",results);heartbeat.Stop();}AssertExperience(pulses>=3&&maxGap<2000,"UI heartbeat continues during forty thousand progress events",results);AssertExperience(progressMailbox.Received>=40000&&progressMailbox.Delivered<100,"progress pumping stays bounded under load",results);results.Add("BENCHMARK UI heartbeat pulses="+pulses+" maxGap="+maxGap+"ms; progress received="+progressMailbox.Received+" delivered="+progressMailbox.Delivered);
    Package importedPackage=await ImportFromFile(zip);AssertExperience(importedPackage!=null&&scanRuns==scans,"ZIP import updates the catalog without rescanning Workshop",results);AssertExperience(rows.Single().Options.Count==2,"incremental import preserves the independent original source",results);var importedOption=rows.Single().Options.Single(o=>Data.Same(o.Key,importedPackage.Folder));checkedVersions.Clear();SetVersionChecked(importedOption,true);await ExecuteFixtureOperation(()=>ArchiveCheckedVersions());AssertExperience(scanRuns==scans&&rows.Single().Options.Count==1,"archive removes only the affected catalog source without rescanning",results);AssertExperience(Directory.Exists(rows.Single().Package.Folder),"incremental archive preserves external source files",results);
    detail.Text=string.Join(Environment.NewLine,Enumerable.Range(0,160).Select(i=>"Readable line "+i));var scroll=(ScrollSurface)detail.Parent.Parent;scroll.Sync();scroll.Wheel(-120);AssertExperience(detail.SelectionLength==0,"themed detail scrolling does not select or change text",results);AssertExperience(grid.ScrollBars==ScrollBars.None&&versionGrid.ScrollBars==ScrollBars.None&&FindControls(this).OfType<StyledComboBox>().Count()>=8,"main lists and selectors use the shared controls",results);
-   foreach(int page in new[]{0,1,2,3,4,5}){tabs.SelectedIndex=page;await Task.Delay(40);}AssertExperience(true,"hidden scrollable pages do not starve the message loop",results);tabs.SelectedIndex=3;ChangeLanguage(2);PerformLayout();Application.DoEvents();using(var image=new Bitmap(ClientSize.Width,ClientSize.Height)){Controls[0].DrawToBitmap(image,new Rectangle(Point.Empty,ClientSize));image.Save(Path.Combine(output,"settings-zh-CN.png"));}
+   foreach(int page in new[]{0,1,2,3,4}){tabs.SelectedIndex=page;await Task.Delay(40);}AssertExperience(true,"hidden scrollable pages do not starve the message loop",results);tabs.SelectedIndex=3;ChangeLanguage(2);PerformLayout();Application.DoEvents();using(var image=new Bitmap(ClientSize.Width,ClientSize.Height)){Controls[0].DrawToBitmap(image,new Rectangle(Point.Empty,ClientSize));image.Save(Path.Combine(output,"settings-zh-CN.png"));}
    tabs.SelectedIndex=0;for(int i=0;i<80;i++){var package=rows[0].Package;rows.Add(new Row{Package=package,Options=rows[0].Options});}SortRows();ApplyFilter();var gridSkin=((SmoothGrid)grid).Skin;gridSkin.Sync();gridSkin.Wheel(-120);AssertExperience(grid.FirstDisplayedScrollingRowIndex>0,"themed grid scrollbar moves through actual rows",results);rows.RemoveRange(1,rows.Count-1);SortRows();
+  }
+  void VerifyCompactChrome(string output,List<string> results){
+   var original=ClientSize;
+   bool collapsed=settings.navigationCollapsed;
+   ChangeLanguage(0);
+   ClientSize=new Size(1366,768);PerformLayout();Application.DoEvents();
+   var filterCard=(SectionPanel)filters.Parent;
+   var listCard=(SectionPanel)detailSplit.Panel1.Controls[0];
+   var detailCard=FindControls(detailSplit.Panel2).OfType<SectionPanel>().Single();
+   var leftAction=openCurrent.RectangleToScreen(openCurrent.ClientRectangle);
+   var rightAction=historyCurrent.RectangleToScreen(historyCurrent.ClientRectangle);
+   var detailEdge=detailCard.RectangleToScreen(detailCard.ClientRectangle);
+   var input=(InputFrame)search.Parent;
+   var inputBounds=filterCard.RectangleToClient(input.RectangleToScreen(input.ClientRectangle));
+   var centers=filters.Controls.Cast<Control>().Select(c=>c.Top+c.Height/2).ToArray();
+   AssertExperience(filterCard.Height<=64&&centers.Max()-centers.Min()<=1&&Math.Abs(inputBounds.Top-(filterCard.ClientSize.Height-inputBounds.Bottom))<=1&&
+    filters.Controls.Cast<Control>().All(c=>filters.ClientRectangle.Contains(c.Bounds)),
+    "search row uses one compact line with equal padding above and below (height="+filterCard.Height+", input="+inputBounds+", centers="+string.Join(",",centers)+")",results);
+   AssertExperience(Math.Abs(listCard.PointToScreen(Point.Empty).Y-detailEdge.Top)<=1&&
+    leftAction.Top==rightAction.Top&&leftAction.Height==44&&leftAction.Bottom==rightAction.Bottom&&
+    rightAction.Left-leftAction.Right==WorkspaceGap&&Math.Abs(leftAction.Width-rightAction.Width)<=1&&
+    leftAction.Left==detailEdge.Left&&rightAction.Right==detailEdge.Right,
+    "detail actions are 44 pixels high with equal widths and consistent spacing",results);
+   float idleHeight=workspaceRoot.RowStyles[5].Height;
+   AssertExperience(!progress.Visible&&idleHeight==status.Font.Height+WorkspaceGap,"idle footer uses only one status line",results);
+   SetBusy(true);Application.DoEvents();
+   AssertExperience(progress.Visible&&progress.Height>0&&workspaceRoot.RowStyles[5].Height>idleHeight,"running work expands the footer for progress",results);
+   SetBusy(false);
+   status.GetType().GetMethod("OnClick",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).Invoke(status,new object[]{EventArgs.Empty});
+   AssertExperience(jobSummary.Visible&&workspaceRoot.RowStyles[5].Height>idleHeight,"clicking status expands the existing operation details",results);
+   status.GetType().GetMethod("OnClick",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).Invoke(status,new object[]{EventArgs.Empty});
+   AssertExperience(!jobSummary.Visible&&workspaceRoot.RowStyles[5].Height==idleHeight,"closing the details restores the compact footer",results);
+   var navCard=(SectionPanel)navigation.Parent;
+   if(!settings.navigationCollapsed)navToggle.PerformClick();
+   foreach(bool expanded in new[]{false,true}){
+    if(expanded)navToggle.PerformClick();
+    Refresh();Application.DoEvents();
+    using(var border=new Bitmap(navCard.Width,navCard.Height)){
+     navCard.DrawToBitmap(border,new Rectangle(Point.Empty,border.Size));
+     int center=border.Width/2;
+     bool continuous=Enumerable.Range(0,3).All(offset=>{
+      int x=center+offset-1,y=border.Height/2;
+      return border.GetPixel(x,1).ToArgb()==Themes.Current.Border.ToArgb()&&
+       border.GetPixel(1,y+offset-1).ToArgb()==Themes.Current.Border.ToArgb()&&
+       border.GetPixel(border.Width-2,y+offset-1).ToArgb()==Themes.Current.Border.ToArgb();
+     });
+     AssertExperience(continuous&&settings.navigationCollapsed!=expanded,"navigation border paints continuously when "+(expanded?"expanded":"collapsed"),results);
+    }
+    using(var frame=new Bitmap(ClientSize.Width,ClientSize.Height)){
+     Controls[0].DrawToBitmap(frame,new Rectangle(Point.Empty,ClientSize));
+     frame.Save(Path.Combine(output,expanded?"v1.3-expanded.png":"v1.3-collapsed.png"));
+    }
+   }
+   settings.navigationCollapsed=collapsed;UpdateNavigation();ClientSize=original;
   }
  }
 }
